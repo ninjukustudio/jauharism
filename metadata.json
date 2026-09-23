@@ -1,0 +1,7 @@
+{
+  "name": "Project Jauhari - Rational Islamic Revivalism",
+  "description": "An interactive epistemological platform and AI-powered Q&A gateway exploring the 7-faceted manifesto of Project Jauhari for rational Islamic revivalism.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
