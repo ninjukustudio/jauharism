@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CURATED_FAQS, SEVEN_AXIOMS } from "../data/manifestoData.ts";
 import { FAQItem, UserInquiryHistory } from "../types.ts";
 import { MarkdownRenderer } from "./MarkdownRenderer.tsx";
+import { generateSemanticAnswer } from "../services/jauhariKnowledgeEngine.ts";
 import {
   Sparkles,
   HelpCircle,
@@ -87,26 +88,54 @@ export const QAModule: React.FC<QAModuleProps> = ({
     setFallbackWarning(null);
 
     try {
-      const response = await fetch("/api/jauhari-qa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: inquiryText.trim(),
-          contextAxiomId: focalAxiomId || undefined,
-        }),
-      });
+      let generatedAnswer = "";
+      let sourceName = "gemini-3.6-flash";
+      let isFallback = false;
+      let warningText: string | null = null;
 
-      if (!response.ok) {
-        throw new Error(`Server returned error code: ${response.status}`);
+      try {
+        const response = await fetch("/api/jauhari-qa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: inquiryText.trim(),
+            contextAxiomId: focalAxiomId || undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          generatedAnswer = data.answer || "";
+          sourceName = data.source || "gemini-3.6-flash";
+          isFallback = !!data.isFallback;
+          warningText = data.warning || data.note || null;
+        } else {
+          console.warn(`Server returned status ${response.status}, engaging client-side Jauhari Manifesto Engine.`);
+          generatedAnswer = generateSemanticAnswer(inquiryText.trim(), focalAxiomId || undefined);
+          sourceName = "manifesto-offline-synthesizer";
+          isFallback = true;
+          warningText =
+            response.status === 404
+              ? "The backend endpoint is currently synchronizing or unavailable on this host. An authoritative response was synthesized directly from the Project Jauhari Manifesto archives."
+              : `The server reported status ${response.status}. Synthesized directly from the Project Jauhari Manifesto knowledge base.`;
+        }
+      } catch (fetchErr: any) {
+        console.warn("Network request to /api/jauhari-qa failed, falling back to local manifesto engine:", fetchErr);
+        generatedAnswer = generateSemanticAnswer(inquiryText.trim(), focalAxiomId || undefined);
+        sourceName = "manifesto-offline-synthesizer";
+        isFallback = true;
+        warningText = "Operating in offline / direct manifesto mode. Response generated directly from the Project Jauhari epistemological core.";
       }
 
-      const data = await response.json();
-      const generatedAnswer = data.answer || "No response text received.";
+      if (!generatedAnswer) {
+        generatedAnswer = generateSemanticAnswer(inquiryText.trim(), focalAxiomId || undefined);
+        isFallback = true;
+      }
 
       setCurrentAnswer(generatedAnswer);
-      setAnswerSource(data.source || "gemini-3.6-flash");
-      setIsFallbackResponse(!!data.isFallback);
-      setFallbackWarning(data.warning || null);
+      setAnswerSource(sourceName);
+      setIsFallbackResponse(isFallback);
+      setFallbackWarning(warningText);
 
       // Save to session history
       const newEntry: UserInquiryHistory = {
@@ -115,15 +144,24 @@ export const QAModule: React.FC<QAModuleProps> = ({
         answer: generatedAnswer,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         focalAxiomId: focalAxiomId || undefined,
-        source: data.source,
+        source: sourceName,
       };
 
       setInquiryHistory((prev) => [newEntry, ...prev.slice(0, 9)]);
     } catch (err: any) {
       console.error("Inquiry error:", err);
-      setErrorMessage(
-        "Could not generate an AI response. Please verify your connection or try again."
-      );
+      // Final resilient safety net: never leave the user with an empty error
+      try {
+        const fallback = generateSemanticAnswer(inquiryText.trim(), focalAxiomId || undefined);
+        setCurrentAnswer(fallback);
+        setAnswerSource("manifesto-emergency-engine");
+        setIsFallbackResponse(true);
+        setFallbackWarning("Synthesized directly from the Project Jauhari Manifesto archives.");
+      } catch {
+        setErrorMessage(
+          "Could not generate an AI response. Please verify your connection or try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
