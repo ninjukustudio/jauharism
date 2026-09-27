@@ -27,6 +27,10 @@ async function getOrCreateJauhariFolder(accessToken: string): Promise<string | n
       if (data.files && data.files.length > 0) {
         return data.files[0].id;
       }
+    } else if (searchRes.status === 403) {
+      // If listing folders is restricted by scope (e.g. drive.file without broad drive search),
+      // gracefully proceed without folder rather than failing
+      return null;
     }
 
     // 2. Folder does not exist, create it
@@ -101,53 +105,78 @@ ${params.answer}
 *Preserved in personal Google Drive via Project Jauhari Integration.*
 `;
 
-  // Get or create dedicated folder
-  const folderId = await getOrCreateJauhariFolder(accessToken);
-
-  // Metadata object for Google Drive
-  const metadata: { name: string; mimeType: string; parents?: string[] } = {
-    name: fileName,
-    mimeType: "text/markdown",
-  };
-
-  if (folderId) {
-    metadata.parents = [folderId];
-  }
-
   // Multipart upload boundary
   const boundary = "-------314159265358979323846";
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelimiter = `\r\n--${boundary}--`;
 
-  const multipartRequestBody =
-    delimiter +
-    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-    JSON.stringify(metadata) +
-    delimiter +
-    "Content-Type: text/markdown; charset=UTF-8\r\n\r\n" +
-    markdownContent +
-    closeDelimiter;
+  // Helper function to perform multipart file creation
+  const executeUpload = async (targetFolderId: string | null): Promise<Response> => {
+    const metadata: { name: string; mimeType: string; parents?: string[] } = {
+      name: fileName,
+      mimeType: "text/markdown",
+    };
 
-  const uploadRes = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartRequestBody,
+    if (targetFolderId) {
+      metadata.parents = [targetFolderId];
     }
-  );
+
+    const multipartRequestBody =
+      delimiter +
+      "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+      JSON.stringify(metadata) +
+      delimiter +
+      "Content-Type: text/markdown; charset=UTF-8\r\n\r\n" +
+      markdownContent +
+      closeDelimiter;
+
+    return await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartRequestBody,
+      }
+    );
+  };
+
+  // Attempt 1: Upload into dedicated folder if possible
+  const folderId = await getOrCreateJauhariFolder(accessToken);
+  let uploadRes = await executeUpload(folderId);
+
+  // If upload to subfolder was rejected with 403 or 404 (due to parent folder permission limits or scope restrictions),
+  // immediately fallback to root Drive (without parents)
+  if (!uploadRes.ok && folderId && (uploadRes.status === 403 || uploadRes.status === 404)) {
+    console.warn(
+      `Drive upload into folder ${folderId} was rejected (${uploadRes.status}). Retrying directly to root Google Drive...`
+    );
+    uploadRes = await executeUpload(null);
+  }
 
   if (!uploadRes.ok) {
     if (uploadRes.status === 401) {
       setCachedDriveToken(null);
-      throw new Error("Your Google Drive session has expired. Please re-authorize Google Drive to continue.");
+      throw new Error(
+        "Your Google Drive session has expired. Please re-connect Google Drive to continue."
+      );
     }
+
     const errorData = await uploadRes.json().catch(() => ({}));
+    const errorMsg = errorData.error?.message || "";
+
+    if (uploadRes.status === 403 || errorMsg.toLowerCase().includes("permission")) {
+      // Invalidate the under-permissioned cached token so the user can re-prompt with full scopes
+      setCachedDriveToken(null);
+      throw new Error(
+        "Missing or insufficient permissions: Google Drive access was not granted by your Google account. Please click 'Connect Google Drive' and make sure to check the box granting Google Drive access on the authorization screen."
+      );
+    }
+
     throw new Error(
-      errorData.error?.message || `Google Drive upload failed with status ${uploadRes.status}`
+      errorMsg || `Google Drive upload failed with status ${uploadRes.status}`
     );
   }
 

@@ -116,7 +116,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setIsConnectingDrive(true);
     setStatusMessage(null);
     try {
-      await authorizeGoogleDrive();
+      await authorizeGoogleDrive(true);
       setIsDriveActive(true);
       setStatusMessage({
         text: "Google Drive successfully connected! You can now sync inquiries directly to your Drive.",

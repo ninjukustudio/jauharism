@@ -39,9 +39,14 @@ export const db = getFirestore(
   "ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1"
 );
 
-// Google Auth Provider with Google Drive file scope
+// Google Auth Provider with Google Drive scopes
 export const googleDriveProvider = new GoogleAuthProvider();
 googleDriveProvider.addScope("https://www.googleapis.com/auth/drive.file");
+googleDriveProvider.addScope("https://www.googleapis.com/auth/drive");
+googleDriveProvider.setCustomParameters({
+  prompt: "consent",
+  access_type: "offline",
+});
 
 // In-memory access token cache for Google Workspace OAuth (per security guidelines)
 let cachedDriveAccessToken: string | null = null;
@@ -117,13 +122,13 @@ export const signUpWithEmail = async (
   try {
     await setDoc(
       doc(db, "users", credential.user.uid),
-      {
+      sanitizeFirestoreData({
         userId: credential.user.uid,
-        email: credential.user.email,
+        email: credential.user.email || null,
         displayName: displayName || credential.user.email?.split("@")[0] || "Scholar",
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
-      },
+      }),
       { merge: true }
     );
   } catch (e) {
@@ -144,9 +149,9 @@ export const signInWithEmail = async (
   try {
     await setDoc(
       doc(db, "users", credential.user.uid),
-      {
+      sanitizeFirestoreData({
         lastLoginAt: new Date().toISOString(),
-      },
+      }),
       { merge: true }
     );
   } catch (e) {
@@ -173,13 +178,13 @@ export const signInWithGoogle = async (): Promise<{
     try {
       await setDoc(
         doc(db, "users", result.user.uid),
-        {
+        sanitizeFirestoreData({
           userId: result.user.uid,
-          email: result.user.email,
+          email: result.user.email || null,
           displayName: result.user.displayName || result.user.email?.split("@")[0] || "Scholar",
           photoURL: result.user.photoURL || null,
           lastLoginAt: new Date().toISOString(),
-        },
+        }),
         { merge: true }
       );
     } catch (e) {
@@ -199,9 +204,12 @@ export const signInWithGoogle = async (): Promise<{
  * - Existing Email/Password users (linkWithPopup so accounts are merged and data preserved)
  * - Unauthenticated users (signInWithPopup)
  */
-export const authorizeGoogleDrive = async (): Promise<string> => {
-  if (cachedDriveAccessToken) {
+export const authorizeGoogleDrive = async (forceRefresh = false): Promise<string> => {
+  if (cachedDriveAccessToken && !forceRefresh) {
     return cachedDriveAccessToken;
+  }
+  if (forceRefresh) {
+    cachedDriveAccessToken = null;
   }
 
   const currentUser = auth.currentUser;
@@ -340,6 +348,7 @@ export const saveInquiryToFirestore = async (
   const docRef = doc(db, "users", userId, "inquiries", inquiry.id);
   const payload = sanitizeFirestoreData({
     ...inquiry,
+    focalAxiomId: inquiry.focalAxiomId || null,
     userId,
     updatedAt: new Date().toISOString(),
   });

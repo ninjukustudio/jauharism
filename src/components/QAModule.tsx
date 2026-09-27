@@ -720,21 +720,51 @@ export const QAModule: React.FC<QAModuleProps> = ({
                   </div>
 
                   {driveSaveError && (
-                    <div className="mb-4 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-xs text-red-200 flex items-start justify-between gap-2 animate-in fade-in">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-red-100">Unable to save to Google Drive</p>
-                          <p className="text-[11px] text-red-300 mt-0.5">{driveSaveError}</p>
+                    <div className="mb-4 p-3.5 rounded-xl bg-red-950/70 border border-red-500/40 text-xs text-red-200 flex flex-col gap-2.5 animate-in fade-in">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-red-100">Unable to save to Google Drive</p>
+                            <p className="text-[11px] text-red-300 mt-0.5 leading-relaxed">{driveSaveError}</p>
+                          </div>
                         </div>
+                        <button
+                          onClick={() => setDriveSaveError(null)}
+                          className="text-red-400 hover:text-red-200 text-xs font-bold px-1"
+                          aria-label="Dismiss error"
+                        >
+                          ✕
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setDriveSaveError(null)}
-                        className="text-red-400 hover:text-red-200 text-xs font-bold px-1"
-                        aria-label="Dismiss error"
-                      >
-                        ✕
-                      </button>
+
+                      {/* Direct action to grant permissions if permission error */}
+                      {driveSaveError.toLowerCase().includes("permission") && (
+                        <div className="pt-2 border-t border-red-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-[11px] text-red-300">
+                            Check the Drive access box on the Google authorization popup.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                setIsSavingToDrive(true);
+                                setDriveSaveError(null);
+                                await authorizeGoogleDrive(true);
+                                await handleSaveInquiryClick();
+                              } catch (e: any) {
+                                setDriveSaveError(e.message || "Failed to authorize Google Drive.");
+                              } finally {
+                                setIsSavingToDrive(false);
+                              }
+                            }}
+                            className="px-3 py-1 rounded bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-[11px] flex items-center gap-1.5 transition-colors whitespace-nowrap self-start sm:self-auto shadow-sm"
+                          >
+                            <FolderSync className="w-3 h-3 text-[#060E1D]" />
+                            <span>Re-connect & Grant Permissions</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
