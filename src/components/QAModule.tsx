@@ -14,7 +14,8 @@ import {
   onDriveTokenChange,
   StoredInquiry,
 } from "../services/firebase.ts";
-import { uploadInquiryToGoogleDrive } from "../services/googleDriveService.ts";
+import { uploadInquiryToGoogleDrive, downloadInquiryAsMarkdown } from "../services/googleDriveService.ts";
+import { GoogleDriveSaveDialog } from "./GoogleDriveSaveDialog.tsx";
 import {
   Sparkles,
   HelpCircle,
@@ -37,6 +38,7 @@ import {
   UserPlus,
   LogIn,
   AlertCircle,
+  Download,
 } from "lucide-react";
 
 interface QAModuleProps {
@@ -45,7 +47,19 @@ interface QAModuleProps {
   onNavigateToAxiom?: (axiomNumber: string) => void;
   currentUser?: User | null;
   onOpenAuth?: (mode?: "signin" | "signup", contextMsg?: string) => void;
-  onViewDashboard?: () => void;
+  onViewDashboard?: (inquiryData?: {
+    id: string;
+    question: string;
+    answer: string;
+    focalAxiomId?: string | null;
+    answerSource?: string;
+    isFallback?: boolean;
+    timestamp?: string;
+    isSaved?: boolean;
+    savedToDrive?: boolean;
+    driveFileUrl?: string;
+    driveFileName?: string;
+  }) => void;
 }
 
 export const QAModule: React.FC<QAModuleProps> = ({
@@ -72,9 +86,10 @@ export const QAModule: React.FC<QAModuleProps> = ({
   const [copiedAnswer, setCopiedAnswer] = useState<boolean>(false);
   const [inquiryHistory, setInquiryHistory] = useState<UserInquiryHistory[]>([]);
 
-  // Drive Save State for the currently displayed answer
+  // Drive Save State & Dialog
   const [currentInquiryId, setCurrentInquiryId] = useState<string | null>(null);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
+  const [isDriveDialogOpen, setIsDriveDialogOpen] = useState<boolean>(false);
   const [savedDriveResult, setSavedDriveResult] = useState<{
     fileId: string;
     webViewLink: string;
@@ -234,9 +249,9 @@ export const QAModule: React.FC<QAModuleProps> = ({
   };
 
   /**
-   * Handle Save Inquiry action: saves to Firestore Scholar Archive AND Google Drive directly
+   * Handle Save Inquiry action: persists to Firestore and opens the Google Drive Save Dialogue
    */
-  const handleSaveInquiryClick = async () => {
+  const handleSaveInquiryClick = () => {
     if (!currentAnswer) return;
 
     // 1. If user is logged out, prompt sign in or sign up
@@ -249,72 +264,27 @@ export const QAModule: React.FC<QAModuleProps> = ({
       return;
     }
 
-    setIsSavingToDrive(true);
-    setDriveSaveError(null);
-
     const inquiryId = currentInquiryId || `inq-${Date.now()}`;
     if (!currentInquiryId) setCurrentInquiryId(inquiryId);
 
-    try {
-      // Step 1: Save/Record directly into Firestore archive (guaranteed persistence)
-      await saveInquiryToFirestore(currentUser.uid, {
-        id: inquiryId,
-        question: inquiryText,
-        focalAxiomId: focalAxiomId || null,
-        answer: currentAnswer,
-        answerSource: answerSource || "gemini-3.6-flash",
-        isFallback: isFallbackResponse,
-        timestamp: new Date().toISOString(),
-        isSaved: true,
-        savedAt: new Date().toISOString(),
-      });
-      setIsSavedToArchive(true);
+    // Save/Record directly into Firestore archive (guaranteed persistence)
+    saveInquiryToFirestore(currentUser.uid, {
+      id: inquiryId,
+      question: inquiryText,
+      focalAxiomId: focalAxiomId || null,
+      answer: currentAnswer,
+      answerSource: answerSource || "gemini-3.6-flash",
+      isFallback: isFallbackResponse,
+      timestamp: new Date().toISOString(),
+      isSaved: true,
+      savedAt: new Date().toISOString(),
+    }).catch((dbErr) => {
+      console.warn("Could not auto-record inquiry to Firestore:", dbErr);
+    });
+    setIsSavedToArchive(true);
 
-      // Step 2: Attempt Google Drive saving
-      let token = await getDriveAccessToken(false);
-      if (!token) {
-        // Direct click gesture: open authorization popup safely
-        try {
-          token = await authorizeGoogleDrive();
-        } catch (authErr: any) {
-          console.warn("Drive authorization skipped or blocked:", authErr);
-          if (authErr.code === "auth/popup-blocked") {
-            setDriveSaveError(
-              "Inquiry saved to Scholar Archive! (Google Drive popup was blocked by browser. Allow popups to sync to Drive)."
-            );
-          } else {
-            setDriveSaveError(
-              "Inquiry saved to Scholar Archive! (Google Drive authorization was not completed)."
-            );
-          }
-          return;
-        }
-      }
-
-      if (token) {
-        const driveResult = await uploadInquiryToGoogleDrive({
-          question: inquiryText,
-          answer: currentAnswer,
-          focalAxiomId: focalAxiomId || undefined,
-          answerSource: answerSource || undefined,
-          token,
-        });
-
-        setSavedDriveResult(driveResult);
-
-        // Update record with Drive metadata
-        await updateInquiryDriveStatusInFirestore(currentUser.uid, inquiryId, {
-          driveFileId: driveResult.fileId,
-          driveFileUrl: driveResult.webViewLink,
-          driveFileName: driveResult.fileName,
-        });
-      }
-    } catch (err: any) {
-      console.error("Save error:", err);
-      setDriveSaveError(err.message || "Failed to sync inquiry to Google Drive.");
-    } finally {
-      setIsSavingToDrive(false);
-    }
+    // Open the Google Drive Save Dialogue requested by user
+    setIsDriveDialogOpen(true);
   };
 
   const filteredFaqs =
@@ -715,35 +685,77 @@ export const QAModule: React.FC<QAModuleProps> = ({
                             </>
                           )}
                         </button>
+
+                        {/* Export Markdown (.md) direct download */}
+                        <button
+                          id="export-markdown-btn"
+                          onClick={() => {
+                            downloadInquiryAsMarkdown({
+                              question: inquiryText,
+                              answer: currentAnswer || "",
+                              focalAxiomId: focalAxiomId || undefined,
+                              answerSource: answerSource || undefined,
+                            });
+                          }}
+                          title="Download inquiry as a formatted Markdown (.md) file to your computer"
+                          className="flex items-center gap-1.5 text-[11px] font-medium text-[#CBD5E1] hover:text-[#F8F9FA] px-2.5 py-1 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/30 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <span>Export .md</span>
+                        </button>
                       </div>
                     )}
                   </div>
 
                   {driveSaveError && (
-                    <div className="mb-4 p-3.5 rounded-xl bg-red-950/70 border border-red-500/40 text-xs text-red-200 flex flex-col gap-2.5 animate-in fade-in">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-semibold text-red-100">Unable to save to Google Drive</p>
-                            <p className="text-[11px] text-red-300 mt-0.5 leading-relaxed">{driveSaveError}</p>
+                    <div className="mb-4 p-4 rounded-xl bg-red-950/80 border border-red-500/50 text-xs text-red-200 flex flex-col gap-3 animate-in fade-in shadow-lg">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="font-semibold text-red-100 text-sm">
+                              {driveSaveError.includes("GOOGLE_DRIVE_API_DISABLED")
+                                ? "Google Drive API is Disabled in Google Cloud Console"
+                                : driveSaveError.includes("INSUFFICIENT_DRIVE_SCOPES")
+                                ? "Google Drive Permissions Not Granted"
+                                : "Unable to Save to Google Drive"}
+                            </p>
+                            <p className="text-[12px] text-red-300 leading-relaxed font-sans">
+                              {driveSaveError.replace("GOOGLE_DRIVE_API_DISABLED: ", "").replace("INSUFFICIENT_DRIVE_SCOPES: ", "")}
+                            </p>
+                            <p className="text-[11px] text-emerald-400 font-medium pt-1">
+                              ✓ Your inquiry is safely archived in your Scholar History!
+                            </p>
                           </div>
                         </div>
                         <button
                           onClick={() => setDriveSaveError(null)}
-                          className="text-red-400 hover:text-red-200 text-xs font-bold px-1"
+                          className="text-red-400 hover:text-red-200 text-sm font-bold px-1.5 py-0.5 rounded hover:bg-red-900/50"
                           aria-label="Dismiss error"
                         >
                           ✕
                         </button>
                       </div>
 
-                      {/* Direct action to grant permissions if permission error */}
-                      {driveSaveError.toLowerCase().includes("permission") && (
-                        <div className="pt-2 border-t border-red-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <span className="text-[11px] text-red-300">
-                            Check the Drive access box on the Google authorization popup.
-                          </span>
+                      <div className="pt-2.5 border-t border-red-500/25 flex flex-wrap items-center justify-between gap-2.5">
+                        {/* If API is disabled in GCP project */}
+                        {driveSaveError.includes("GOOGLE_DRIVE_API_DISABLED") ? (
+                          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <a
+                              href="https://console.cloud.google.com/apis/library/drive.googleapis.com?project=jauharism"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                            >
+                              <span>Enable Drive API in Google Cloud</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                            <span className="text-[11px] text-red-300">
+                              (Project: <code className="bg-red-900/60 px-1 py-0.5 rounded font-mono text-[10px]">jauharism / 296974631120</code>)
+                            </span>
+                          </div>
+                        ) : (
+                          /* If Scope needs re-granting */
                           <button
                             type="button"
                             onClick={async () => {
@@ -758,13 +770,30 @@ export const QAModule: React.FC<QAModuleProps> = ({
                                 setIsSavingToDrive(false);
                               }
                             }}
-                            className="px-3 py-1 rounded bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-[11px] flex items-center gap-1.5 transition-colors whitespace-nowrap self-start sm:self-auto shadow-sm"
+                            className="px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
                           >
-                            <FolderSync className="w-3 h-3 text-[#060E1D]" />
+                            <FolderSync className="w-3.5 h-3.5 text-[#060E1D]" />
                             <span>Re-connect & Grant Permissions</span>
                           </button>
-                        </div>
-                      )}
+                        )}
+
+                        {/* Always offer direct Markdown download so scholar is never blocked */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadInquiryAsMarkdown({
+                              question: inquiryText,
+                              answer: currentAnswer || "",
+                              focalAxiomId: focalAxiomId || undefined,
+                              answerSource: answerSource || undefined,
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#0E2445] hover:bg-[#163665] text-[#F8F9FA] border border-[#D4AF37]/40 font-medium text-xs flex items-center gap-1.5 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <span>Download .md Document</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -834,7 +863,29 @@ export const QAModule: React.FC<QAModuleProps> = ({
                     <div className="flex items-center gap-3">
                       {currentUser && onViewDashboard && (
                         <button
-                          onClick={onViewDashboard}
+                          onClick={() => {
+                            const inquiryId = currentInquiryId || `inq-${Date.now()}`;
+                            const payload = {
+                              id: inquiryId,
+                              question: inquiryText,
+                              answer: currentAnswer || "",
+                              focalAxiomId: focalAxiomId || null,
+                              answerSource: answerSource || "gemini-3.6-flash",
+                              isFallback: isFallbackResponse,
+                              timestamp: new Date().toISOString(),
+                              isSaved: true,
+                              savedAt: new Date().toISOString(),
+                              savedToDrive: !!savedDriveResult,
+                              driveFileUrl: savedDriveResult?.webViewLink,
+                              driveFileName: savedDriveResult?.fileName,
+                            };
+                            if (currentUser) {
+                              saveInquiryToFirestore(currentUser.uid, payload).catch((e) =>
+                                console.warn("Could not save before dashboard navigation:", e)
+                              );
+                            }
+                            onViewDashboard(payload);
+                          }}
                           className="text-[#D4AF37] hover:text-[#F3E5AB] flex items-center gap-1 font-semibold transition-colors"
                         >
                           <span>View in Dashboard →</span>
@@ -854,7 +905,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
               </div>
 
               {/* Inquiry History */}
-              {inquiryHistory.length > 1 && (
+              {inquiryHistory.length > 0 && (
                 <div className="bg-[#0A192F]/60 rounded-xl p-4 border border-[#D4AF37]/20">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-[#D4AF37]">
@@ -863,31 +914,82 @@ export const QAModule: React.FC<QAModuleProps> = ({
                     </div>
                     {currentUser && onViewDashboard && (
                       <button
-                        onClick={onViewDashboard}
+                        onClick={() => {
+                          const currentItem =
+                            inquiryHistory.find(
+                              (h) =>
+                                h.id === currentInquiryId ||
+                                (h.question === inquiryText && h.answer === currentAnswer)
+                            ) || inquiryHistory[0];
+                          if (currentItem) {
+                            onViewDashboard({
+                              id: currentItem.id,
+                              question: currentItem.question,
+                              answer: currentItem.answer,
+                              focalAxiomId: currentItem.focalAxiomId || null,
+                              answerSource: currentItem.source || "gemini-3.6-flash",
+                              isFallback: isFallbackResponse,
+                              timestamp: new Date().toISOString(),
+                              isSaved: true,
+                            });
+                          } else {
+                            onViewDashboard();
+                          }
+                        }}
                         className="text-[11px] text-[#D4AF37] hover:underline"
                       >
                         All Saved Inquiries →
                       </button>
                     )}
                   </div>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                    {inquiryHistory.slice(1).map((hist) => (
-                      <button
-                        key={hist.id}
-                        onClick={() => {
-                          setInquiryText(hist.question);
-                          setCurrentAnswer(hist.answer);
-                          setAnswerSource(hist.source || null);
-                          setSavedDriveResult(null);
-                        }}
-                        className="w-full text-left p-2 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] text-xs text-[#CBD5E1] hover:text-[#F8F9FA] flex items-center justify-between gap-2 transition-colors border border-[#D4AF37]/15"
-                      >
-                        <span className="truncate">{hist.question}</span>
-                        <span className="text-[10px] text-[#94A3B8] font-mono flex-shrink-0">
-                          {hist.timestamp}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {inquiryHistory.map((hist) => {
+                      const isCurrentActive =
+                        hist.id === currentInquiryId ||
+                        (hist.question === inquiryText && hist.answer === currentAnswer);
+
+                      return (
+                        <button
+                          key={hist.id}
+                          onClick={() => {
+                            setCurrentInquiryId(hist.id);
+                            setInquiryText(hist.question);
+                            setCurrentAnswer(hist.answer);
+                            setAnswerSource(hist.source || "gemini-3.6-flash");
+                            if (hist.focalAxiomId) {
+                              setFocalAxiomId(hist.focalAxiomId);
+                            }
+                            setSavedDriveResult(null);
+                            setDriveSaveError(null);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-lg text-xs flex items-center justify-between gap-2 transition-all border ${
+                            isCurrentActive
+                              ? "bg-[#0E2445] border-[#D4AF37] text-[#F3E5AB] shadow-sm ring-1 ring-[#D4AF37]/40"
+                              : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] hover:text-[#F8F9FA] border-[#D4AF37]/15"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {isCurrentActive && (
+                              <span
+                                className="w-2 h-2 rounded-full bg-[#D4AF37] flex-shrink-0 animate-pulse"
+                                title="Currently Displayed"
+                              />
+                            )}
+                            <span className="truncate">{hist.question}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {isCurrentActive && (
+                              <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40">
+                                Active
+                              </span>
+                            )}
+                            <span className="text-[10px] text-[#94A3B8] font-mono">
+                              {hist.timestamp}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -895,6 +997,29 @@ export const QAModule: React.FC<QAModuleProps> = ({
           </div>
         )}
       </div>
+
+      {/* Google Drive Save Dialogue */}
+      <GoogleDriveSaveDialog
+        isOpen={isDriveDialogOpen}
+        onClose={() => setIsDriveDialogOpen(false)}
+        inquiry={{
+          id: currentInquiryId || `inq-${Date.now()}`,
+          question: inquiryText,
+          answer: currentAnswer || "",
+          focalAxiomId: focalAxiomId || null,
+          answerSource: answerSource || "gemini-3.6-flash",
+          timestamp: new Date().toISOString(),
+          isSaved: true,
+          savedToDrive: !!savedDriveResult,
+          driveFileUrl: savedDriveResult?.webViewLink,
+          driveFileName: savedDriveResult?.fileName,
+        }}
+        currentUser={currentUser}
+        onSaveSuccess={(result) => {
+          setSavedDriveResult(result);
+          setIsSavedToArchive(true);
+        }}
+      />
     </section>
   );
 };

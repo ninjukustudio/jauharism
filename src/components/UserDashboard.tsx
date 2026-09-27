@@ -11,7 +11,12 @@ import {
   authorizeGoogleDrive,
   onDriveTokenChange,
 } from "../services/firebase.ts";
-import { uploadInquiryToGoogleDrive } from "../services/googleDriveService.ts";
+import {
+  uploadInquiryToGoogleDrive,
+  downloadInquiryAsMarkdown,
+  SaveDriveResult,
+} from "../services/googleDriveService.ts";
+import { GoogleDriveSaveDialog } from "./GoogleDriveSaveDialog.tsx";
 import { MarkdownRenderer } from "./MarkdownRenderer.tsx";
 import {
   Sparkles,
@@ -34,18 +39,24 @@ import {
   ArrowRight,
   Cloud,
   Check,
+  Download,
+  AlertCircle,
 } from "lucide-react";
 
 interface UserDashboardProps {
   currentUser: User | null;
   onOpenAuth: (mode?: "signin" | "signup", contextMsg?: string) => void;
   onNavigateToQA: (question?: string, axiomId?: string) => void;
+  targetInquiryId?: string | null;
+  targetInquiry?: StoredInquiry | null;
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   currentUser,
   onOpenAuth,
   onNavigateToQA,
+  targetInquiryId = null,
+  targetInquiry = null,
 }) => {
   const [savedInquiries, setSavedInquiries] = useState<StoredInquiry[]>([]);
   const [recentInquiries, setRecentInquiries] = useState<StoredInquiry[]>([]);
@@ -63,6 +74,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [isDriveActive, setIsDriveActive] = useState<boolean>(hasDriveToken());
   const [isConnectingDrive, setIsConnectingDrive] = useState<boolean>(false);
 
+  // Google Drive Save Dialogue State
+  const [driveDialogInquiry, setDriveDialogInquiry] = useState<StoredInquiry | null>(null);
+  const [isDriveDialogOpen, setIsDriveDialogOpen] = useState<boolean>(false);
+
   // Sync Google Drive token state
   useEffect(() => {
     setIsDriveActive(hasDriveToken());
@@ -71,6 +86,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     });
     return unsub;
   }, []);
+
+  // Handle targetInquiry navigation from QAModule
+  useEffect(() => {
+    if (targetInquiry) {
+      // Ensure targetInquiry is in state immediately so it never shows "No saved inquiries"
+      const mergeInquiry = (list: StoredInquiry[]) => {
+        const filtered = list.filter((i) => i.id !== targetInquiry.id);
+        return [targetInquiry, ...filtered];
+      };
+
+      setSavedInquiries(mergeInquiry);
+      setRecentInquiries(mergeInquiry);
+      setAllInquiries(mergeInquiry);
+      setExpandedId(targetInquiry.id);
+      setViewMode("saved");
+
+      // Auto-scroll to focused inquiry
+      setTimeout(() => {
+        const elem = document.getElementById(`inquiry-card-${targetInquiry.id}`);
+        if (elem) {
+          elem.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    } else if (targetInquiryId) {
+      setExpandedId(targetInquiryId);
+    }
+  }, [targetInquiry, targetInquiryId]);
 
   // Load inquiries whenever currentUser changes
   useEffect(() => {
@@ -88,19 +130,39 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setLoading(true);
     try {
       const data = await fetchAllUserInquiriesFromFirestore(currentUser.uid);
+
+      // If user came via "View in Dashboard", preserve targetInquiry in lists
+      if (targetInquiry) {
+        if (!data.saved.some((i) => i.id === targetInquiry.id)) {
+          data.saved.unshift(targetInquiry);
+        }
+        if (!data.recent.some((i) => i.id === targetInquiry.id)) {
+          data.recent.unshift(targetInquiry);
+        }
+        if (!data.all.some((i) => i.id === targetInquiry.id)) {
+          data.all.unshift(targetInquiry);
+        }
+      }
+
       setRecentInquiries(data.recent);
       setSavedInquiries(data.saved);
       setAllInquiries(data.all);
 
-      // Auto-expand first item if none is expanded
-      const currentList =
-        viewMode === "saved"
-          ? data.saved
-          : viewMode === "recent"
-          ? data.recent
-          : data.all;
-      if (currentList.length > 0 && !expandedId) {
-        setExpandedId(currentList[0].id);
+      // Auto-expand target inquiry, or first item if none is expanded
+      if (targetInquiry) {
+        setExpandedId(targetInquiry.id);
+      } else if (targetInquiryId) {
+        setExpandedId(targetInquiryId);
+      } else {
+        const currentList =
+          viewMode === "saved"
+            ? data.saved
+            : viewMode === "recent"
+            ? data.recent
+            : data.all;
+        if (currentList.length > 0 && !expandedId) {
+          setExpandedId(currentList[0].id);
+        }
       }
     } catch (err) {
       console.error("Failed to load inquiries:", err);
@@ -143,97 +205,59 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   };
 
   /**
-   * Save inquiry to Google Drive
+   * Opens the Google Drive Save Dialogue for this inquiry
    */
-  const handleSaveToDrive = async (inquiry: StoredInquiry) => {
-    setSavingDriveId(inquiry.id);
-    setStatusMessage(null);
+  const handleOpenDriveDialog = (inquiry: StoredInquiry) => {
+    setDriveDialogInquiry(inquiry);
+    setIsDriveDialogOpen(true);
+  };
 
-    try {
-      let token: string | undefined = undefined;
-      if (!hasDriveToken()) {
-        // Authorize directly from this click gesture
-        token = await authorizeGoogleDrive();
-        setIsDriveActive(true);
-      }
+  /**
+   * Called when Google Drive Save Dialogue succeeds
+   */
+  const handleDriveDialogSuccess = (result: SaveDriveResult) => {
+    if (!driveDialogInquiry) return;
+    const inquiryId = driveDialogInquiry.id;
 
-      const driveResult = await uploadInquiryToGoogleDrive({
-        question: inquiry.question,
-        answer: inquiry.answer,
-        focalAxiomId: inquiry.focalAxiomId || undefined,
-        answerSource: inquiry.answerSource,
-        timestamp: inquiry.timestamp,
-        token,
-      });
+    const updater = (prev: StoredInquiry[]) =>
+      prev.map((item) =>
+        item.id === inquiryId
+          ? {
+              ...item,
+              isSaved: true,
+              savedToDrive: true,
+              driveFileId: result.fileId,
+              driveFileUrl: result.webViewLink,
+              driveFileName: result.fileName,
+              savedAt: new Date().toISOString(),
+            }
+          : item
+      );
 
-      // Update Firestore record
-      if (currentUser) {
-        await updateInquiryDriveStatusInFirestore(currentUser.uid, inquiry.id, {
-          driveFileId: driveResult.fileId,
-          driveFileUrl: driveResult.webViewLink,
-          driveFileName: driveResult.fileName,
-        });
-      }
+    setRecentInquiries(updater);
+    setAllInquiries(updater);
+    setSavedInquiries((prev) => {
+      const exists = prev.some((item) => item.id === inquiryId);
+      if (exists) return updater(prev);
+      return [
+        {
+          ...driveDialogInquiry,
+          isSaved: true,
+          savedToDrive: true,
+          driveFileId: result.fileId,
+          driveFileUrl: result.webViewLink,
+          driveFileName: result.fileName,
+          savedAt: new Date().toISOString(),
+        },
+        ...prev,
+      ];
+    });
 
-      // Update local state in all collections
-      const updater = (prev: StoredInquiry[]) =>
-        prev.map((item) =>
-          item.id === inquiry.id
-            ? {
-                ...item,
-                isSaved: true,
-                savedToDrive: true,
-                driveFileId: driveResult.fileId,
-                driveFileUrl: driveResult.webViewLink,
-                driveFileName: driveResult.fileName,
-                savedAt: new Date().toISOString(),
-              }
-            : item
-        );
-
-      setRecentInquiries(updater);
-      setAllInquiries(updater);
-      setSavedInquiries((prev) => {
-        const exists = prev.some((item) => item.id === inquiry.id);
-        if (exists) {
-          return updater(prev);
-        }
-        return [
-          {
-            ...inquiry,
-            isSaved: true,
-            savedToDrive: true,
-            driveFileId: driveResult.fileId,
-            driveFileUrl: driveResult.webViewLink,
-            driveFileName: driveResult.fileName,
-            savedAt: new Date().toISOString(),
-          },
-          ...prev,
-        ];
-      });
-
-      setStatusMessage({
-        text: `Inquiry saved successfully to Google Drive folder 'Project Jauhari - Saved Inquiries'!`,
-        type: "success",
-      });
-      setTimeout(() => setStatusMessage(null), 5000);
-    } catch (err: any) {
-      console.error("Drive save error:", err);
-      if (err.code === "auth/popup-blocked") {
-        setStatusMessage({
-          text: "Authorization popup was blocked by browser. Please click 'Connect Google Drive' at top first.",
-          type: "error",
-        });
-      } else {
-        setStatusMessage({
-          text: err.message || "Failed to save inquiry to Google Drive.",
-          type: "error",
-        });
-      }
-      setTimeout(() => setStatusMessage(null), 6000);
-    } finally {
-      setSavingDriveId(null);
-    }
+    setStatusMessage({
+      text: `Inquiry saved successfully to Google Drive: '${result.fileName}'!`,
+      type: "success",
+    });
+    setTimeout(() => setStatusMessage(null), 5000);
   };
 
   /**
@@ -489,18 +513,50 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         {/* Status Toast */}
         {statusMessage && (
           <div
-            className={`mb-6 p-4 rounded-xl border flex items-center gap-3 animate-in fade-in ${
+            className={`mb-6 p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in ${
               statusMessage.type === "success"
                 ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-200"
-                : "bg-red-950/60 border-red-500/40 text-red-200"
+                : "bg-red-950/80 border-red-500/50 text-red-200"
             }`}
           >
-            {statusMessage.type === "success" ? (
-              <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-            ) : (
-              <Trash2 className="w-5 h-5 text-red-400 flex-shrink-0" />
-            )}
-            <span className="text-xs sm:text-sm font-medium">{statusMessage.text}</span>
+            <div className="flex items-start gap-3">
+              {statusMessage.type === "success" ? (
+                <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <span className="text-xs sm:text-sm font-medium leading-relaxed block">
+                  {statusMessage.text.replace("GOOGLE_DRIVE_API_DISABLED: ", "").replace("INSUFFICIENT_DRIVE_SCOPES: ", "")}
+                </span>
+                {statusMessage.text.includes("GOOGLE_DRIVE_API_DISABLED") && (
+                  <p className="text-[11px] text-red-300">
+                    Note: Granting IAM permissions to <code className="bg-red-900/60 px-1 py-0.5 rounded font-mono text-[10px]">jauharism.firebaseapp.com</code> does not enable the Google Drive API service. You must enable it in APIs & Services.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
+              {statusMessage.text.includes("GOOGLE_DRIVE_API_DISABLED") && (
+                <a
+                  href="https://console.cloud.google.com/apis/library/drive.googleapis.com?project=jauharism"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm whitespace-nowrap"
+                >
+                  <span>Enable in GCP Console</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+              <button
+                onClick={() => setStatusMessage(null)}
+                className="text-red-400 hover:text-red-200 text-xs px-2 py-1"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
 
@@ -644,7 +700,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 });
 
                 return (
-                  <div key={inquiry.id} className="py-4 group transition-colors">
+                  <div
+                    key={inquiry.id}
+                    id={`inquiry-card-${inquiry.id}`}
+                    className={`py-4 group transition-colors rounded-xl px-2 sm:px-3 mb-2 ${
+                      targetInquiryId === inquiry.id
+                        ? "bg-[#D4AF37]/5 border border-[#D4AF37]/40 shadow-md"
+                        : ""
+                    }`}
+                  >
                     {/* Inquiry Row Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div
@@ -683,6 +747,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-[#060E1D] text-[#94A3B8] border border-[#94A3B8]/30">
                               Firestore History
+                            </span>
+                          )}
+
+                          {targetInquiryId === inquiry.id && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#D4AF37] text-[#060E1D]">
+                              Focused from Q&A
                             </span>
                           )}
                         </div>
@@ -729,19 +799,31 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                           </a>
                         ) : (
                           <button
-                            onClick={() => handleSaveToDrive(inquiry)}
-                            disabled={isSavingThis}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/50 text-[#F3E5AB] hover:text-[#D4AF37] text-xs font-semibold transition-all shadow-sm disabled:opacity-60"
-                            title="Sync formatted Markdown to your Google Drive folder"
+                            onClick={() => handleOpenDriveDialog(inquiry)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/50 text-[#F3E5AB] hover:text-[#D4AF37] text-xs font-semibold transition-all shadow-sm"
+                            title="Save inquiry to Google Drive"
                           >
-                            {isSavingThis ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
-                            ) : (
-                              <FolderSync className="w-3.5 h-3.5 text-[#D4AF37]" />
-                            )}
-                            <span>{isSavingThis ? "Saving..." : "Save to Drive"}</span>
+                            <FolderSync className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            <span>Save to Drive</span>
                           </button>
                         )}
+
+                        {/* Export Markdown (.md) direct download */}
+                        <button
+                          onClick={() => {
+                            downloadInquiryAsMarkdown({
+                              question: inquiry.question,
+                              answer: inquiry.answer,
+                              focalAxiomId: inquiry.focalAxiomId || undefined,
+                              answerSource: inquiry.answerSource,
+                              timestamp: inquiry.timestamp,
+                            });
+                          }}
+                          className="p-1.5 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/30 text-[#D4AF37] hover:text-[#F3E5AB] transition-colors"
+                          title="Download as Markdown (.md) file to your computer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
 
                         {/* Re-ask in QA */}
                         <button
@@ -798,6 +880,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     {/* Expandable Epistemological Response Content */}
                     {isExpanded && (
                       <div className="mt-4 pt-4 border-t border-[#D4AF37]/20 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 p-4 sm:p-6 shadow-inner animate-in fade-in duration-200">
+                        {/* Prominent Complete Question Prompt */}
+                        <div className="mb-5 p-4 rounded-xl bg-[#0A192F] border border-[#D4AF37]/35 shadow-sm">
+                          <div className="flex items-center justify-between mb-1.5 text-[10px] text-[#D4AF37] uppercase font-bold tracking-wider">
+                            <span>Theological & Epistemological Question Prompt:</span>
+                            {inquiry.focalAxiomId && (
+                              <span className="px-2 py-0.5 rounded bg-[#060E1D] border border-[#D4AF37]/30 text-[10px]">
+                                {inquiry.focalAxiomId.replace("axiom-", "Axiom ").toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm sm:text-base font-semibold text-[#F8F9FA] leading-relaxed">
+                            "{inquiry.question}"
+                          </h4>
+                        </div>
+
                         <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#D4AF37]/20">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-[#D4AF37]"></span>
@@ -842,16 +939,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
                             {!inquiry.savedToDrive && (
                               <button
-                                onClick={() => handleSaveToDrive(inquiry)}
-                                disabled={isSavingThis}
+                                onClick={() => handleOpenDriveDialog(inquiry)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-xs transition-colors shadow-sm"
                               >
-                                {isSavingThis ? (
-                                  <Loader2 className="w-3 h-3 animate-spin text-[#060E1D]" />
-                                ) : (
-                                  <FolderSync className="w-3 h-3 text-[#060E1D]" />
-                                )}
-                                <span>Sync to Google Drive</span>
+                                <FolderSync className="w-3 h-3 text-[#060E1D]" />
+                                <span>Save to Google Drive</span>
                               </button>
                             )}
                           </div>
@@ -865,6 +957,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Google Drive Save Dialogue */}
+      {driveDialogInquiry && (
+        <GoogleDriveSaveDialog
+          isOpen={isDriveDialogOpen}
+          onClose={() => {
+            setIsDriveDialogOpen(false);
+            setDriveDialogInquiry(null);
+          }}
+          inquiry={driveDialogInquiry}
+          currentUser={currentUser}
+          onSaveSuccess={handleDriveDialogSuccess}
+        />
+      )}
     </section>
   );
 };

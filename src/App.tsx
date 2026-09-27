@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { User } from "firebase/auth";
-import { initAuth } from "./services/firebase.ts";
+import { initAuth, StoredInquiry } from "./services/firebase.ts";
 import { Navbar } from "./components/Navbar.tsx";
 import { HeroBanner } from "./components/HeroBanner.tsx";
 import { AxiomsExplorer } from "./components/AxiomsExplorer.tsx";
@@ -19,6 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("axioms");
   const [qaInitialQuestion, setQaInitialQuestion] = useState<string>("");
   const [qaInitialAxiomId, setQaInitialAxiomId] = useState<string>("");
+  const [dashboardTargetInquiry, setDashboardTargetInquiry] = useState<StoredInquiry | null>(null);
 
   // Firebase Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -154,7 +155,27 @@ export default function App() {
             onNavigateToAxiom={handleNavigateToAxiomFromFaq}
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
-            onViewDashboard={() => setActiveTab("dashboard")}
+            onViewDashboard={(targetData) => {
+              if (targetData) {
+                setDashboardTargetInquiry({
+                  id: targetData.id,
+                  userId: currentUser?.uid || "current-scholar",
+                  question: targetData.question,
+                  answer: targetData.answer,
+                  focalAxiomId: targetData.focalAxiomId,
+                  answerSource: targetData.answerSource || "gemini-3.6-flash",
+                  isFallback: targetData.isFallback,
+                  timestamp: targetData.timestamp || new Date().toISOString(),
+                  isSaved: true,
+                  savedAt: new Date().toISOString(),
+                  savedToDrive: targetData.savedToDrive,
+                  driveFileUrl: targetData.driveFileUrl,
+                  driveFileName: targetData.driveFileName,
+                });
+              }
+              setActiveTab("dashboard");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         )}
 
@@ -163,6 +184,8 @@ export default function App() {
           <UserDashboard
             currentUser={currentUser}
             onOpenAuth={handleOpenAuth}
+            targetInquiry={dashboardTargetInquiry}
+            targetInquiryId={dashboardTargetInquiry?.id}
             onNavigateToQA={(question, axiomId) => {
               if (question) setQaInitialQuestion(question);
               if (axiomId) setQaInitialAxiomId(axiomId);
