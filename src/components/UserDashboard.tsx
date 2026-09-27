@@ -42,9 +42,6 @@ import {
   Check,
   Download,
   AlertCircle,
-  Database,
-  Copy,
-  HelpCircle,
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -82,12 +79,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [driveDialogInquiry, setDriveDialogInquiry] = useState<StoredInquiry | null>(null);
   const [isDriveDialogOpen, setIsDriveDialogOpen] = useState<boolean>(false);
 
-  // Cloud Firestore Sync & Diagnostic State
+  // Cloud Firestore Sync State
   const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
   const [isSyncingToCloud, setIsSyncingToCloud] = useState<boolean>(false);
-  const [cloudSyncMessage, setCloudSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const [copiedRules, setCopiedRules] = useState<boolean>(false);
-  const [showRulesGuide, setShowRulesGuide] = useState<boolean>(false);
 
   // Sync Google Drive token state
   useEffect(() => {
@@ -184,62 +178,42 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   };
 
   /**
-   * Sync all local cached inquiries directly to Cloud Firestore database
+   * Unified Bidirectional Sync: Pushes unsynced local inquiries to Firestore and pulls latest remote records
    */
-  const handleSyncToFirestore = async () => {
+  const handleBidirectionalSync = async () => {
     if (!currentUser) return;
     setIsSyncingToCloud(true);
-    setCloudSyncMessage(null);
+    setStatusMessage(null);
     try {
+      // 1. Push local cached inquiries to Cloud Firestore
       const res = await syncLocalInquiriesToFirestore(currentUser.uid);
+
+      // 2. Pull / refresh latest inquiries from Cloud Firestore
+      await loadInquiries();
+
       if (res.success) {
-        setCloudSyncMessage({
-          text: `Success! Synchronized ${res.syncedCount} inquiry${res.syncedCount === 1 ? "" : "s"} directly to Cloud Firestore database. Refresh Google Cloud Console to view your records!`,
-          isError: false,
+        setStatusMessage({
+          type: "success",
+          text:
+            res.syncedCount > 0
+              ? `Synchronized ${res.syncedCount} inquiry${res.syncedCount === 1 ? "" : "s"} with Cloud Firestore database.`
+              : "Inquiries archive refreshed and synchronized with Cloud Firestore.",
         });
-        setCloudSyncError(null);
-        await loadInquiries();
       } else {
-        setCloudSyncMessage({
-          text: `Sync note: ${res.syncedCount} saved, ${res.failedCount} pending (${res.error || "Permission Denied"}). Please publish the security rules in Google Cloud / Firebase Console below.`,
-          isError: true,
+        setStatusMessage({
+          type: "error",
+          text: `Sync note: ${res.failedCount} item(s) could not sync to Cloud Firestore (${res.error || "Permission Denied"}).`,
         });
       }
     } catch (err: any) {
-      setCloudSyncMessage({
-        text: `Sync error: ${err?.message || "Check permissions"}`,
-        isError: true,
+      console.error("Bidirectional sync error:", err);
+      setStatusMessage({
+        type: "error",
+        text: `Sync error: ${err?.message || "Check network/permissions"}.`,
       });
     } finally {
       setIsSyncingToCloud(false);
     }
-  };
-
-  const firestoreRulesText = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    match /users/{userId} {
-      allow read, write: if isOwner(userId);
-      match /inquiries/{inquiryId} {
-        allow read, write, delete: if isOwner(userId);
-      }
-    }
-    match /test/connection {
-      allow read: if true;
-    }
-  }
-}`;
-
-  const handleCopyRules = () => {
-    navigator.clipboard.writeText(firestoreRulesText);
-    setCopiedRules(true);
-    setTimeout(() => setCopiedRules(false), 3000);
   };
 
   /**
@@ -493,6 +467,23 @@ service cloud.firestore {
                   <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30">
                     Firebase Auth
                   </span>
+                  {cloudSyncError ? (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950/70 border border-amber-500/50 text-amber-300 flex items-center gap-1"
+                      title="Cloud Firestore rules check pending - inquiry cache stored locally"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      Rules Pending
+                    </span>
+                  ) : (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 flex items-center gap-1"
+                      title="Connected and synchronized with Cloud Firestore database"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Cloud Synced
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
                   {currentUser.email}
@@ -500,45 +491,9 @@ service cloud.firestore {
               </div>
             </div>
 
-            {/* Quick Metrics & Drive Session Status */}
+            {/* Drive Session Status */}
             <div className="flex flex-wrap items-center gap-3">
-              {/* Metric 1: Saved Archive (UNLIMITED) */}
-              <div
-                onClick={() => setViewMode("saved")}
-                className={`px-4 py-2 rounded-xl border cursor-pointer transition-colors ${
-                  viewMode === "saved"
-                    ? "bg-[#D4AF37]/15 border-[#D4AF37] text-[#F3E5AB]"
-                    : "bg-[#060E1D] border-[#D4AF37]/20 text-[#CBD5E1] hover:border-[#D4AF37]/40"
-                }`}
-              >
-                <div className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-bold">
-                  Saved Archive
-                </div>
-                <div className="text-base font-bold text-[#F8F9FA] flex items-center gap-1.5">
-                  <span>{savedInquiries.length}</span>
-                  <span className="text-[10px] font-normal text-[#94A3B8]">(Unlimited)</span>
-                </div>
-              </div>
-
-              {/* Metric 2: Recent Inquiries (Limit: 10) */}
-              <div
-                onClick={() => setViewMode("recent")}
-                className={`px-4 py-2 rounded-xl border cursor-pointer transition-colors ${
-                  viewMode === "recent"
-                    ? "bg-[#D4AF37]/15 border-[#D4AF37] text-[#F3E5AB]"
-                    : "bg-[#060E1D] border-[#D4AF37]/20 text-[#CBD5E1] hover:border-[#D4AF37]/40"
-                }`}
-              >
-                <div className="text-[10px] uppercase tracking-wider text-[#94A3B8] font-bold">
-                  Recent History
-                </div>
-                <div className="text-base font-bold text-[#F8F9FA] flex items-center gap-1.5">
-                  <span>{recentInquiries.length}</span>
-                  <span className="text-[10px] font-normal text-[#94A3B8]">/ 10 max</span>
-                </div>
-              </div>
-
-              {/* Metric 3: Google Drive Status / Connect Button */}
+              {/* Google Drive Status / Connect Button */}
               {isDriveActive ? (
                 <div className="px-3.5 py-2 rounded-xl bg-emerald-950/60 border border-emerald-500/40 flex items-center gap-2">
                   <Cloud className="w-4 h-4 text-emerald-400" />
@@ -579,150 +534,6 @@ service cloud.firestore {
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Cloud Firestore Database & Sync Card */}
-        <div className="mb-8 rounded-2xl bg-[#0A192F] border border-[#D4AF37]/30 p-5 sm:p-6 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D4AF37]/15">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 text-[#D4AF37] mt-0.5">
-                <Database className="w-5 h-5 text-[#D4AF37]" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm sm:text-base font-bold text-[#F8F9FA]">
-                    Cloud Firestore Database
-                  </h2>
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#060E1D] border border-[#D4AF37]/20 text-[#D4AF37]">
-                    ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1
-                  </span>
-                  {cloudSyncError ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950/70 border border-amber-500/50 text-amber-300 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      Rules Pending
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      Cloud Synced
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-[#94A3B8] mt-1">
-                  Project <span className="text-[#CBD5E1] font-mono">jauharism</span> · Saved inquiries in local cache: <span className="font-bold text-[#F3E5AB]">{savedInquiries.length}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={handleSyncToFirestore}
-                disabled={isSyncingToCloud}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] hover:brightness-105 text-[#060E1D] text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-                title="Push all locally stored inquiries directly into Cloud Firestore"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-[#060E1D] ${isSyncingToCloud ? "animate-spin" : ""}`} />
-                <span>{isSyncingToCloud ? "Syncing to Cloud..." : "Sync Local Archive to Cloud Firestore"}</span>
-              </button>
-
-              <button
-                onClick={() => setShowRulesGuide(!showRulesGuide)}
-                className="px-3 py-2 rounded-xl bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/35 text-[#CBD5E1] hover:text-[#F3E5AB] text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span>{showRulesGuide ? "Hide Rules Guide" : "Security Rules Guide"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Sync Status Banner */}
-          {cloudSyncMessage && (
-            <div
-              className={`mt-4 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs animate-in fade-in ${
-                cloudSyncMessage.isError
-                  ? "bg-amber-950/70 border-amber-500/50 text-amber-200"
-                  : "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {cloudSyncMessage.isError ? (
-                  <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                )}
-                <span>{cloudSyncMessage.text}</span>
-              </div>
-              <button
-                onClick={() => setCloudSyncMessage(null)}
-                className="text-xs hover:underline opacity-80 cursor-pointer"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {/* Collapsible Rules Guide */}
-          {(showRulesGuide || cloudSyncError) && (
-            <div className="mt-4 pt-4 border-t border-[#D4AF37]/15 space-y-3 text-xs text-[#CBD5E1]">
-              <div className="p-3.5 rounded-xl bg-[#060E1D] border border-amber-500/30 text-amber-200/90 leading-relaxed">
-                <span className="font-semibold text-amber-300">Why was your database empty?</span> Named Firestore databases (like <span className="font-mono text-amber-200">ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1</span>) in Google Cloud start in locked mode (<code className="bg-black/40 px-1 py-0.5 rounded text-amber-300">allow read, write: if false;</code>). Your inquiries are safely preserved in browser cache right now. Once you publish the rule below in your Google Cloud / Firebase console, click <strong>"Sync Local Archive to Cloud Firestore"</strong> to push them all to your cloud database!
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-                <span className="font-semibold text-[#F8F9FA]">Required Firestore Security Rules:</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={handleCopyRules}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#F3E5AB] transition-colors cursor-pointer"
-                  >
-                    {copiedRules ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Copied to Clipboard!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-[#D4AF37]" />
-                        <span>Copy Rules</span>
-                      </>
-                    )}
-                  </button>
-
-                  <a
-                    href="https://console.cloud.google.com/firestore/databases/ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1/rules?project=jauharism"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#CBD5E1] hover:text-[#F3E5AB] transition-colors"
-                  >
-                    <span>Open GCP Console Rules</span>
-                    <ExternalLink className="w-3 h-3 text-[#D4AF37]" />
-                  </a>
-
-                  <a
-                    href="https://console.firebase.google.com/project/jauharism/firestore/databases/ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1/rules"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#CBD5E1] hover:text-[#F3E5AB] transition-colors"
-                  >
-                    <span>Open Firebase Rules</span>
-                    <ExternalLink className="w-3 h-3 text-[#D4AF37]" />
-                  </a>
-                </div>
-              </div>
-
-              <pre className="p-3.5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/25 font-mono text-[11px] text-[#CBD5E1] overflow-x-auto leading-relaxed select-all">
-                {firestoreRulesText}
-              </pre>
-
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#94A3B8]">
-                <span>1. Click either console link above</span>
-                <span>→</span>
-                <span>2. Paste the rules and click <strong>Publish</strong></span>
-                <span>→</span>
-                <span>3. Click <strong>Sync Local Archive to Cloud Firestore</strong> above</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Status Toast */}
@@ -777,95 +588,86 @@ service cloud.firestore {
 
         {/* Inquiries Management Section */}
         <div className="rounded-2xl bg-[#0A192F] border border-[#D4AF37]/30 p-6 sm:p-8 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-          {/* Section Header with Tabs */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#D4AF37]/20">
-            <div>
-              {/* Category Selector Tabs */}
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => setViewMode("saved")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    viewMode === "saved"
-                      ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
-                      : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
-                  }`}
-                >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>Saved Inquiries</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                    {savedInquiries.length}
-                  </span>
-                </button>
+          {/* Section Header with Streamlined Toolbar */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-5 border-b border-[#D4AF37]/20">
+            {/* Category Selector Tabs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setViewMode("saved")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  viewMode === "saved"
+                    ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
+                    : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Saved</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/20 font-mono">
+                  {savedInquiries.length}
+                </span>
+              </button>
 
-                <button
-                  onClick={() => setViewMode("recent")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    viewMode === "recent"
-                      ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
-                      : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Recent (Max 10)</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                    {recentInquiries.length}
-                  </span>
-                </button>
+              <button
+                onClick={() => setViewMode("recent")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  viewMode === "recent"
+                    ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
+                    : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Recent</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/20 font-mono">
+                  {recentInquiries.length}
+                </span>
+              </button>
 
-                <button
-                  onClick={() => setViewMode("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    viewMode === "all"
-                      ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
-                      : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
-                  }`}
-                >
-                  <span>All Inquiries</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-mono">
-                    {allInquiries.length}
-                  </span>
-                </button>
-              </div>
-
-              <p className="text-xs text-[#94A3B8]">
-                {viewMode === "saved"
-                  ? "Your full archive of saved inquiries (unlimited storage). Export anytime to Google Drive."
-                  : viewMode === "recent"
-                  ? "The 10 most recent AI interrogations conducted in the Q&A Gateway."
-                  : "All inquiries recorded across your scholar profile in Firestore."}
-              </p>
+              <button
+                onClick={() => setViewMode("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  viewMode === "all"
+                    ? "bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm"
+                    : "bg-[#060E1D] hover:bg-[#0E2445] text-[#CBD5E1] border border-[#D4AF37]/25"
+                }`}
+              >
+                <span>All</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/20 font-mono">
+                  {allInquiries.length}
+                </span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Search filter */}
-              <div className="relative">
+              <div className="relative flex-grow sm:flex-grow-0">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
                 <input
                   type="text"
                   placeholder="Filter inquiries..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 rounded-lg bg-[#060E1D] border border-[#D4AF37]/30 text-xs text-[#F8F9FA] placeholder-[#64748B] focus:outline-none focus:border-[#D4AF37]"
+                  className="w-full sm:w-44 pl-8 pr-3 py-1.5 rounded-lg bg-[#060E1D] border border-[#D4AF37]/30 text-xs text-[#F8F9FA] placeholder-[#64748B] focus:outline-none focus:border-[#D4AF37]"
                 />
               </div>
 
-              {/* Reload */}
+              {/* Unified Bidirectional Sync (Push & Pull) */}
               <button
-                onClick={loadInquiries}
-                disabled={loading}
-                className="p-2 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/30 text-[#D4AF37] transition-colors"
-                title="Refresh inquiries from Firestore"
+                onClick={handleBidirectionalSync}
+                disabled={loading || isSyncingToCloud}
+                className="p-2 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/30 text-[#D4AF37] hover:text-[#F3E5AB] transition-colors disabled:opacity-50 cursor-pointer flex-shrink-0"
+                title="Sync with Cloud Firestore (Push & Pull)"
+                aria-label="Sync with Cloud Firestore"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading || isSyncingToCloud ? "animate-spin" : ""}`} />
               </button>
 
               {/* Ask New Question */}
               <button
                 onClick={() => onNavigateToQA()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] text-xs font-bold shadow-sm hover:brightness-105 transition-all"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] text-xs font-bold shadow-sm hover:brightness-105 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>New Inquiry</span>
+                <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Inquire</span>
               </button>
             </div>
           </div>
