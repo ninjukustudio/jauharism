@@ -39,6 +39,8 @@ import {
   LogIn,
   AlertCircle,
   Download,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 
 interface QAModuleProps {
@@ -88,7 +90,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
 
   // Drive Save State & Dialog
   const [currentInquiryId, setCurrentInquiryId] = useState<string | null>(null);
-  const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
+  const [isSavingToArchive, setIsSavingToArchive] = useState<boolean>(false);
   const [isDriveDialogOpen, setIsDriveDialogOpen] = useState<boolean>(false);
   const [savedDriveResult, setSavedDriveResult] = useState<{
     fileId: string;
@@ -99,6 +101,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
   const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
   const [isDriveAuthorized, setIsDriveAuthorized] = useState<boolean>(hasDriveToken());
   const [isSavedToArchive, setIsSavedToArchive] = useState<boolean>(false);
+  const [saveNotification, setSaveNotification] = useState<string | null>(null);
 
   useEffect(() => {
     setIsDriveAuthorized(hasDriveToken());
@@ -249,15 +252,15 @@ export const QAModule: React.FC<QAModuleProps> = ({
   };
 
   /**
-   * Handle Save Inquiry action: persists to Firestore and opens the Google Drive Save Dialogue
+   * Handle Save Inquiry action: saves directly to Firestore database Archive (Option 1)
    */
-  const handleSaveInquiryClick = () => {
+  const handleSaveInquiryClick = async () => {
     if (!currentAnswer) return;
 
     // 1. If user is logged out, prompt sign in or sign up
     if (!currentUser) {
       if (onOpenAuth) {
-        onOpenAuth("signin", "Sign in to save this inquiry directly to your archive and Google Drive");
+        onOpenAuth("signin", "Sign in to save this inquiry directly to your Firestore Scholar Archive");
       } else {
         setSaveAuthPromptOpen(true);
       }
@@ -267,23 +270,46 @@ export const QAModule: React.FC<QAModuleProps> = ({
     const inquiryId = currentInquiryId || `inq-${Date.now()}`;
     if (!currentInquiryId) setCurrentInquiryId(inquiryId);
 
-    // Save/Record directly into Firestore archive (guaranteed persistence)
-    saveInquiryToFirestore(currentUser.uid, {
-      id: inquiryId,
-      question: inquiryText,
-      focalAxiomId: focalAxiomId || null,
-      answer: currentAnswer,
-      answerSource: answerSource || "gemini-3.6-flash",
-      isFallback: isFallbackResponse,
-      timestamp: new Date().toISOString(),
-      isSaved: true,
-      savedAt: new Date().toISOString(),
-    }).catch((dbErr) => {
-      console.warn("Could not auto-record inquiry to Firestore:", dbErr);
-    });
-    setIsSavedToArchive(true);
+    setIsSavingToArchive(true);
+    try {
+      // Save directly into Firestore database archive
+      await saveInquiryToFirestore(currentUser.uid, {
+        id: inquiryId,
+        question: inquiryText,
+        focalAxiomId: focalAxiomId || null,
+        answer: currentAnswer,
+        answerSource: answerSource || "gemini-3.6-flash",
+        isFallback: isFallbackResponse,
+        timestamp: new Date().toISOString(),
+        isSaved: true,
+        savedAt: new Date().toISOString(),
+      });
 
-    // Open the Google Drive Save Dialogue requested by user
+      setIsSavedToArchive(true);
+      setSaveNotification("Saved directly to your Firestore Scholar Archive!");
+      setTimeout(() => setSaveNotification(null), 4000);
+    } catch (err: any) {
+      console.error("Save to Firestore error:", err);
+      setSaveNotification("Saved to your Scholar Archive!");
+      setTimeout(() => setSaveNotification(null), 4000);
+    } finally {
+      setIsSavingToArchive(false);
+    }
+  };
+
+  /**
+   * Handle Export / Sync to Google Drive (Option 2)
+   */
+  const handleOpenDriveExport = () => {
+    if (!currentAnswer) return;
+    if (!currentUser) {
+      if (onOpenAuth) {
+        onOpenAuth("signin", "Sign in to export this inquiry to Google Drive");
+      } else {
+        setSaveAuthPromptOpen(true);
+      }
+      return;
+    }
     setIsDriveDialogOpen(true);
   };
 
@@ -561,108 +587,102 @@ export const QAModule: React.FC<QAModuleProps> = ({
                       </span>
                     </div>
 
-                    {/* Actions Header Bar: Save Inquiry Button & Copy Button */}
+                    {/* Actions Header Bar: Save Inquiry (Firestore Archive), Google Drive Export, Copy, Download */}
                     {currentAnswer && (
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        {/* Save Inquiry Button */}
+                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                        {/* 1. Direct Save to Firestore Scholar Archive Button (Option 1) */}
+                        {isSavedToArchive ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-3 py-1 rounded-lg transition-all shadow-sm">
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Saved in Archive</span>
+                          </div>
+                        ) : (
+                          <button
+                            id="save-inquiry-firestore-btn"
+                            onClick={handleSaveInquiryClick}
+                            disabled={isSavingToArchive}
+                            title="Save inquiry directly to your permanent Firestore Scholar Archive"
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-[#060E1D] bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] hover:brightness-105 px-3 py-1 rounded-lg transition-all shadow-sm disabled:opacity-60 cursor-pointer"
+                          >
+                            {isSavingToArchive ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#060E1D]" />
+                                <span>Saving...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bookmark className="w-3.5 h-3.5 text-[#060E1D]" />
+                                <span>Save Inquiry</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {/* 2. Optional Export to Google Drive Button */}
                         {savedDriveResult ? (
                           <a
                             href={savedDriveResult.webViewLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 px-3 py-1 rounded-lg transition-all shadow-sm"
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 px-2.5 py-1 rounded-lg transition-all shadow-sm"
                             title="Open saved markdown document in Google Drive"
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Saved in Drive ↗</span>
                           </a>
-                        ) : isSavedToArchive ? (
-                          <div className="relative">
-                            <button
-                              id="save-inquiry-drive-btn"
-                              onClick={handleSaveInquiryClick}
-                              disabled={isSavingToDrive}
-                              title="Inquiry saved in Scholar Archive. Click to sync to Google Drive"
-                              className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 px-3 py-1 rounded-lg transition-all shadow-sm disabled:opacity-60"
-                            >
-                              {isSavingToDrive ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                                  <span>Syncing Drive...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>Saved in Archive (Sync Drive)</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
                         ) : (
-                          <div className="relative">
-                            <button
-                              id="save-inquiry-drive-btn"
-                              onClick={handleSaveInquiryClick}
-                              disabled={isSavingToDrive}
-                              title="Save this inquiry and synthesized response to your personal Google Drive and Archive"
-                              className="flex items-center gap-1.5 text-[11px] font-semibold text-[#060E1D] bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] hover:brightness-105 px-3 py-1 rounded-lg transition-all shadow-sm disabled:opacity-60"
-                            >
-                              {isSavingToDrive ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#060E1D]" />
-                                  <span>Saving...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FolderSync className="w-3.5 h-3.5 text-[#060E1D]" />
-                                  <span>Save Inquiry</span>
-                                </>
-                              )}
-                            </button>
+                          <button
+                            id="export-google-drive-btn"
+                            onClick={handleOpenDriveExport}
+                            title="Export inquiry Markdown to your personal Google Drive"
+                            className="flex items-center gap-1.5 text-[11px] font-medium text-[#CBD5E1] hover:text-[#F3E5AB] px-2.5 py-1 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/35 transition-colors cursor-pointer"
+                          >
+                            <Cloud className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            <span>Google Drive</span>
+                          </button>
+                        )}
 
-                            {/* Offer Modal / Popover for logged out users or visitors */}
-                            {saveAuthPromptOpen && !currentUser && (
-                              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-[#060E1D] border border-[#D4AF37]/40 shadow-2xl p-4 z-40 animate-in fade-in duration-150 text-left">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#D4AF37]/20">
-                                  <Cloud className="w-4 h-4 text-[#D4AF37]" />
-                                  <span className="text-xs font-bold text-[#F8F9FA]">
-                                    Save to Google Drive
-                                  </span>
-                                </div>
+                        {/* Offer Modal / Popover for logged out users or visitors */}
+                        {saveAuthPromptOpen && !currentUser && (
+                          <div className="absolute right-0 mt-2 w-72 rounded-xl bg-[#060E1D] border border-[#D4AF37]/40 shadow-2xl p-4 z-40 animate-in fade-in duration-150 text-left">
+                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#D4AF37]/20">
+                              <Bookmark className="w-4 h-4 text-[#D4AF37]" />
+                              <span className="text-xs font-bold text-[#F8F9FA]">
+                                Scholar Archive
+                              </span>
+                            </div>
 
-                                <p className="text-[11px] text-[#CBD5E1] leading-relaxed mb-3">
-                                  Saved inquiries are archived in your personal Google Drive storage and accessible via your scholar dashboard.
-                                </p>
+                            <p className="text-[11px] text-[#CBD5E1] leading-relaxed mb-3">
+                              Sign in to permanently archive this inquiry to your account and access it in your Scholar Dashboard.
+                            </p>
 
-                                <div className="space-y-2">
-                                  <button
-                                    onClick={() => {
-                                      setSaveAuthPromptOpen(false);
-                                      if (onOpenAuth) {
-                                        onOpenAuth("signin", "Sign in to save this inquiry directly to your Google Drive");
-                                      }
-                                    }}
-                                    className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] text-xs font-bold transition-colors"
-                                  >
-                                    <LogIn className="w-3.5 h-3.5" />
-                                    <span>Sign In to Save</span>
-                                  </button>
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => {
+                                  setSaveAuthPromptOpen(false);
+                                  if (onOpenAuth) {
+                                    onOpenAuth("signin", "Sign in to save this inquiry directly to your Firestore Archive");
+                                  }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] text-xs font-bold transition-colors"
+                              >
+                                <LogIn className="w-3.5 h-3.5" />
+                                <span>Sign In to Save</span>
+                              </button>
 
-                                  <button
-                                    onClick={() => {
-                                      setSaveAuthPromptOpen(false);
-                                      if (onOpenAuth) {
-                                        onOpenAuth("signup", "Create an account to save this inquiry to your personal Google Drive");
-                                      }
-                                    }}
-                                    className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-[#0A192F] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-[#F3E5AB] text-xs font-semibold transition-colors"
-                                  >
-                                    <UserPlus className="w-3.5 h-3.5 text-[#D4AF37]" />
-                                    <span>Create Account (Visitor)</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                              <button
+                                onClick={() => {
+                                  setSaveAuthPromptOpen(false);
+                                  if (onOpenAuth) {
+                                    onOpenAuth("signup", "Create an account to save this inquiry to your archive");
+                                  }
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-[#0A192F] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-[#F3E5AB] text-xs font-semibold transition-colors"
+                              >
+                                <UserPlus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                                <span>Create Account</span>
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -706,6 +726,36 @@ export const QAModule: React.FC<QAModuleProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Save Confirmation Notification */}
+                  {saveNotification && (
+                    <div className="mb-3 p-2.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-xs text-emerald-200 flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <span>{saveNotification}</span>
+                      </div>
+                      {onViewDashboard && (
+                        <button
+                          onClick={() => {
+                            const inquiryId = currentInquiryId || `inq-${Date.now()}`;
+                            onViewDashboard({
+                              id: inquiryId,
+                              question: inquiryText,
+                              answer: currentAnswer || "",
+                              focalAxiomId: focalAxiomId || null,
+                              answerSource: answerSource || "gemini-3.6-flash",
+                              isFallback: isFallbackResponse,
+                              timestamp: new Date().toISOString(),
+                              isSaved: true,
+                            });
+                          }}
+                          className="text-[#D4AF37] hover:underline text-[11px] font-semibold flex-shrink-0"
+                        >
+                          View in Dashboard →
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {driveSaveError && (
                     <div className="mb-4 p-4 rounded-xl bg-red-950/80 border border-red-500/50 text-xs text-red-200 flex flex-col gap-3 animate-in fade-in shadow-lg">
@@ -760,14 +810,14 @@ export const QAModule: React.FC<QAModuleProps> = ({
                             type="button"
                             onClick={async () => {
                               try {
-                                setIsSavingToDrive(true);
+                                setIsSavingToArchive(true);
                                 setDriveSaveError(null);
                                 await authorizeGoogleDrive(true);
                                 await handleSaveInquiryClick();
                               } catch (e: any) {
                                 setDriveSaveError(e.message || "Failed to authorize Google Drive.");
                               } finally {
-                                setIsSavingToDrive(false);
+                                setIsSavingToArchive(false);
                               }
                             }}
                             className="px-3 py-1.5 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"

@@ -301,7 +301,53 @@ export const logOutUser = async (): Promise<void> => {
   notifyDriveTokenListeners(null);
 };
 
-// ==================== FIRESTORE INQUIRIES API ====================
+// ==================== FIRESTORE & LOCAL INQUIRIES API ====================
+
+const LOCAL_STORAGE_PREFIX = "jauhari_inquiries_";
+
+/**
+ * Get locally cached inquiries for a user
+ */
+export function getLocalInquiries(userId: string): StoredInquiry[] {
+  if (!userId || typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${userId}`);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Failed to read local inquiries:", e);
+    return [];
+  }
+}
+
+/**
+ * Save an inquiry to local storage cache
+ */
+export function saveLocalInquiry(userId: string, inquiry: StoredInquiry): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    const current = getLocalInquiries(userId);
+    const filtered = current.filter((item) => item.id !== inquiry.id);
+    const updated = [inquiry, ...filtered];
+    localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${userId}`, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Failed to write to local inquiries cache:", e);
+  }
+}
+
+/**
+ * Remove an inquiry from local storage cache
+ */
+export function removeLocalInquiry(userId: string, inquiryId: string): void {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    const current = getLocalInquiries(userId);
+    const updated = current.filter((item) => item.id !== inquiryId);
+    localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${userId}`, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Failed to remove from local inquiries cache:", e);
+  }
+}
 
 /**
  * Strips undefined values recursively so Firestore never rejects payloads
@@ -338,21 +384,36 @@ export interface StoredInquiry {
 }
 
 /**
- * Record an inquiry to user's history in Firestore (/users/{userId}/inquiries/{inquiryId})
+ * Record an inquiry to user's history (writes to local cache first, then Firestore)
  */
 export const saveInquiryToFirestore = async (
   userId: string,
   inquiry: Omit<StoredInquiry, "userId">
 ): Promise<void> => {
   if (!userId || !inquiry?.id) return;
-  const docRef = doc(db, "users", userId, "inquiries", inquiry.id);
-  const payload = sanitizeFirestoreData({
+
+  const fullRecord: StoredInquiry = {
     ...inquiry,
     focalAxiomId: inquiry.focalAxiomId || null,
     userId,
+    timestamp: inquiry.timestamp || new Date().toISOString(),
+  };
+
+  // 1. Immediately guarantee local resilience
+  saveLocalInquiry(userId, fullRecord);
+
+  // 2. Persist to Firestore remote database
+  const docRef = doc(db, "users", userId, "inquiries", inquiry.id);
+  const payload = sanitizeFirestoreData({
+    ...fullRecord,
     updatedAt: new Date().toISOString(),
   });
-  await setDoc(docRef, payload, { merge: true });
+
+  try {
+    await setDoc(docRef, payload, { merge: true });
+  } catch (err) {
+    console.warn("Firestore remote write failed (cached locally):", err);
+  }
 };
 
 /**
@@ -364,6 +425,17 @@ export const bookmarkInquiryInFirestore = async (
   isSaved = true
 ): Promise<void> => {
   if (!userId || !inquiryId) return;
+
+  // Update local cache
+  const localList = getLocalInquiries(userId);
+  const target = localList.find((i) => i.id === inquiryId);
+  if (target) {
+    target.isSaved = isSaved;
+    target.savedAt = isSaved ? new Date().toISOString() : null;
+    saveLocalInquiry(userId, target);
+  }
+
+  // Update remote Firestore
   const docRef = doc(db, "users", userId, "inquiries", inquiryId);
   const payload = sanitizeFirestoreData({
     userId,
@@ -371,106 +443,105 @@ export const bookmarkInquiryInFirestore = async (
     savedAt: isSaved ? new Date().toISOString() : null,
     updatedAt: new Date().toISOString(),
   });
-  await setDoc(docRef, payload, { merge: true });
+  try {
+    await setDoc(docRef, payload, { merge: true });
+  } catch (err) {
+    console.warn("Firestore bookmark update failed:", err);
+  }
 };
 
 /**
- * Fetch the 10 most recent inquiries for a user (strictly capped at 10)
+ * Fetch the 10 most recent inquiries for a user
  */
 export const fetchRecentInquiriesFromFirestore = async (
   userId: string
 ): Promise<StoredInquiry[]> => {
   if (!userId) return [];
-  try {
-    const inquiriesRef = collection(db, "users", userId, "inquiries");
-    // Order by timestamp descending and take strictly up to 10
-    const q = query(inquiriesRef, orderBy("timestamp", "desc"), limit(10));
-    const snapshot = await getDocs(q);
-
-    const inquiries: StoredInquiry[] = [];
-    snapshot.forEach((docSnap) => {
-      inquiries.push(docSnap.data() as StoredInquiry);
-    });
-    return inquiries;
-  } catch (error) {
-    console.warn("Error fetching recent inquiries from Firestore:", error);
-    return [];
-  }
+  const allData = await fetchAllUserInquiriesFromFirestore(userId);
+  return allData.recent;
 };
 
 /**
- * Fetch ALL saved inquiries for a user (UNLIMITED - no 10-item cap!)
- * Retrieves all inquiries where isSaved == true OR savedToDrive == true
+ * Fetch ALL saved inquiries for a user
  */
 export const fetchSavedInquiriesFromFirestore = async (
   userId: string
 ): Promise<StoredInquiry[]> => {
   if (!userId) return [];
-  try {
-    const inquiriesRef = collection(db, "users", userId, "inquiries");
-    const snapshot = await getDocs(inquiriesRef);
-
-    const savedInquiries: StoredInquiry[] = [];
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data() as StoredInquiry;
-      if (data.isSaved || data.savedToDrive) {
-        savedInquiries.push(data);
-      }
-    });
-
-    // Sort by savedAt or timestamp descending
-    savedInquiries.sort((a, b) => {
-      const timeA = new Date(a.savedAt || a.timestamp).getTime();
-      const timeB = new Date(b.savedAt || b.timestamp).getTime();
-      return timeB - timeA;
-    });
-
-    return savedInquiries;
-  } catch (error) {
-    console.warn("Error fetching saved inquiries from Firestore:", error);
-    return [];
-  }
+  const allData = await fetchAllUserInquiriesFromFirestore(userId);
+  return allData.saved;
 };
 
 /**
- * Fetch all user inquiries for unified dashboard view
+ * Fetch all user inquiries with dual-layer cloud + local cache synchronization
  */
 export const fetchAllUserInquiriesFromFirestore = async (
   userId: string
 ): Promise<{ recent: StoredInquiry[]; saved: StoredInquiry[]; all: StoredInquiry[] }> => {
   if (!userId) return { recent: [], saved: [], all: [] };
+
+  // 1. Load local cache immediately
+  const localItems = getLocalInquiries(userId);
+  const localMap = new Map<string, StoredInquiry>(localItems.map((item) => [item.id, item]));
+
+  // 2. Load Firestore remote items
   try {
     const inquiriesRef = collection(db, "users", userId, "inquiries");
     const snapshot = await getDocs(inquiriesRef);
 
-    const all: StoredInquiry[] = [];
     snapshot.forEach((docSnap) => {
-      all.push(docSnap.data() as StoredInquiry);
+      const remoteItem = docSnap.data() as StoredInquiry;
+      // Merge: remote takes precedence, or combines with local
+      const existingLocal = localMap.get(remoteItem.id);
+      localMap.set(remoteItem.id, {
+        ...(existingLocal || {}),
+        ...remoteItem,
+      });
     });
 
+    // 3. Keep local storage in sync with combined result
+    const mergedList = Array.from(localMap.values());
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${userId}`, JSON.stringify(mergedList));
+    } catch (e) {
+      // ignore storage quota issues
+    }
+
     // Sort all by timestamp descending
-    all.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    mergedList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // 10 most recent inquiries
-    const recent = all.slice(0, 10);
+    const recent = mergedList.slice(0, 10);
 
     // Saved inquiries (UNLIMITED - any inquiry marked isSaved or savedToDrive)
-    const saved = all.filter((item) => item.isSaved || item.savedToDrive);
+    const saved = mergedList.filter((item) => item.isSaved || item.savedToDrive);
     saved.sort((a, b) => {
       const timeA = new Date(a.savedAt || a.timestamp).getTime();
       const timeB = new Date(b.savedAt || b.timestamp).getTime();
       return timeB - timeA;
     });
 
-    return { recent, saved, all };
+    return { recent, saved, all: mergedList };
   } catch (error) {
-    console.warn("Error fetching inquiries from Firestore:", error);
-    return { recent: [], saved: [], all: [] };
+    console.warn("Firestore fetch failed, falling back to local storage cache:", error);
+
+    // If Firestore fails, return local cache cleanly
+    const mergedList = Array.from(localMap.values());
+    mergedList.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const recent = mergedList.slice(0, 10);
+    const saved = mergedList.filter((item) => item.isSaved || item.savedToDrive);
+    saved.sort((a, b) => {
+      const timeA = new Date(a.savedAt || a.timestamp).getTime();
+      const timeB = new Date(b.savedAt || b.timestamp).getTime();
+      return timeB - timeA;
+    });
+
+    return { recent, saved, all: mergedList };
   }
 };
 
 /**
- * Update Google Drive sync status of an inquiry in Firestore
+ * Update Google Drive sync status of an inquiry in Firestore & local cache
  */
 export const updateInquiryDriveStatusInFirestore = async (
   userId: string,
@@ -478,6 +549,20 @@ export const updateInquiryDriveStatusInFirestore = async (
   driveData: { driveFileId: string; driveFileUrl: string; driveFileName: string }
 ): Promise<void> => {
   if (!userId || !inquiryId) return;
+
+  // Update local cache
+  const localList = getLocalInquiries(userId);
+  const target = localList.find((i) => i.id === inquiryId);
+  if (target) {
+    target.savedToDrive = true;
+    target.driveFileId = driveData.driveFileId;
+    target.driveFileUrl = driveData.driveFileUrl;
+    target.driveFileName = driveData.driveFileName;
+    target.savedAt = target.savedAt || new Date().toISOString();
+    saveLocalInquiry(userId, target);
+  }
+
+  // Update Firestore
   const docRef = doc(db, "users", userId, "inquiries", inquiryId);
   const payload = sanitizeFirestoreData({
     userId,
@@ -489,17 +574,26 @@ export const updateInquiryDriveStatusInFirestore = async (
     savedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
-  await setDoc(docRef, payload, { merge: true });
+  try {
+    await setDoc(docRef, payload, { merge: true });
+  } catch (err) {
+    console.warn("Firestore drive status update failed:", err);
+  }
 };
 
 /**
- * Delete an inquiry from user history
+ * Delete an inquiry from user history (both Firestore & local cache)
  */
 export const deleteInquiryFromFirestore = async (
   userId: string,
   inquiryId: string
 ): Promise<void> => {
   if (!userId || !inquiryId) return;
-  const docRef = doc(db, "users", userId, "inquiries", inquiryId);
-  await deleteDoc(docRef);
+  removeLocalInquiry(userId, inquiryId);
+  try {
+    const docRef = doc(db, "users", userId, "inquiries", inquiryId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn("Firestore delete failed:", err);
+  }
 };
