@@ -52,6 +52,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     text: string;
     type: "success" | "error";
   } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Load inquiries whenever currentUser changes
   useEffect(() => {
@@ -134,10 +135,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const handleDelete = async (inquiryId: string) => {
     if (!currentUser) return;
-    const confirmDelete = window.confirm(
-      "Are you sure you want to remove this inquiry from your recent list?"
-    );
-    if (!confirmDelete) return;
+    setConfirmDeleteId(null);
 
     try {
       await deleteInquiryFromFirestore(currentUser.uid, inquiryId);
@@ -145,8 +143,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (expandedId === inquiryId) {
         setExpandedId(null);
       }
-    } catch (err) {
+      setStatusMessage({
+        text: "Inquiry successfully removed from your archive.",
+        type: "success",
+      });
+      setTimeout(() => setStatusMessage(null), 4000);
+    } catch (err: any) {
       console.error("Failed to delete inquiry:", err);
+      setStatusMessage({
+        text: err.message || "Failed to delete inquiry from archive.",
+        type: "error",
+      });
+      setTimeout(() => setStatusMessage(null), 5000);
     }
   };
 
@@ -441,14 +449,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                           <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
                         </button>
 
-                        {/* Delete */}
-                        <button
-                          onClick={() => handleDelete(inquiry.id)}
-                          className="p-1.5 rounded-lg bg-[#060E1D] hover:bg-red-950/50 border border-[#D4AF37]/20 text-[#94A3B8] hover:text-red-300 transition-colors"
-                          title="Delete from history"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Delete with inline confirmation */}
+                        {confirmDeleteId === inquiry.id ? (
+                          <div className="flex items-center gap-1 bg-[#060E1D] p-0.5 rounded-lg border border-red-500/40 animate-in fade-in">
+                            <button
+                              onClick={() => handleDelete(inquiry.id)}
+                              className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-colors"
+                              title="Confirm deletion"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-1.5 py-1 text-[#94A3B8] hover:text-[#F8F9FA] rounded text-[10px] transition-colors"
+                              title="Cancel"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(inquiry.id)}
+                            className="p-1.5 rounded-lg bg-[#060E1D] hover:bg-red-950/50 border border-[#D4AF37]/20 text-[#94A3B8] hover:text-red-300 transition-colors"
+                            title="Delete from history"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
                         {/* Accordion Toggle */}
                         <button

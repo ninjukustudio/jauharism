@@ -31,6 +31,7 @@ import {
   Lock,
   UserPlus,
   LogIn,
+  AlertCircle,
 } from "lucide-react";
 
 interface QAModuleProps {
@@ -75,6 +76,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
     fileName: string;
   } | null>(null);
   const [saveAuthPromptOpen, setSaveAuthPromptOpen] = useState<boolean>(false);
+  const [driveSaveError, setDriveSaveError] = useState<string | null>(null);
 
   const faqCategories = [
     "All",
@@ -117,6 +119,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
     setFallbackWarning(null);
     setSavedDriveResult(null);
     setSaveAuthPromptOpen(false);
+    setDriveSaveError(null);
 
     const newInquiryId = `inq-${Date.now()}`;
     setCurrentInquiryId(newInquiryId);
@@ -228,6 +231,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
 
     // 2. If user is logged in, upload directly to Google Drive
     setIsSavingToDrive(true);
+    setDriveSaveError(null);
     try {
       const driveResult = await uploadInquiryToGoogleDrive({
         question: inquiryText,
@@ -248,7 +252,9 @@ export const QAModule: React.FC<QAModuleProps> = ({
       }
     } catch (err: any) {
       console.error("Save to Drive error:", err);
-      alert(err.message || "Failed to save inquiry to Google Drive.");
+      setDriveSaveError(
+        err.message || "Failed to save inquiry to Google Drive. Please check permissions."
+      );
     } finally {
       setIsSavingToDrive(false);
     }
@@ -633,6 +639,25 @@ export const QAModule: React.FC<QAModuleProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {driveSaveError && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-950/60 border border-red-500/40 text-xs text-red-200 flex items-start justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-red-100">Unable to save to Google Drive</p>
+                          <p className="text-[11px] text-red-300 mt-0.5">{driveSaveError}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setDriveSaveError(null)}
+                        className="text-red-400 hover:text-red-200 text-xs font-bold px-1"
+                        aria-label="Dismiss error"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
 
                   {isLoading ? (
                     <div className="py-16 text-center space-y-3">
