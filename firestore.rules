@@ -18,10 +18,12 @@ service cloud.firestore {
       // Subcollection: Inquiries
       match /inquiries/{inquiryId} {
         allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId) &&
+        allow create: if isOwner(userId) &&
           request.resource.data.userId == userId &&
           request.resource.data.question is string &&
           request.resource.data.answer is string;
+        allow update: if isOwner(userId) &&
+          request.resource.data.userId == userId;
       }
     }
 

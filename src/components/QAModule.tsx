@@ -8,6 +8,7 @@ import {
   saveInquiryToFirestore,
   updateInquiryDriveStatusInFirestore,
   bookmarkInquiryInFirestore,
+  getDriveAccessToken,
   hasDriveToken,
   authorizeGoogleDrive,
   onDriveTokenChange,
@@ -233,122 +234,86 @@ export const QAModule: React.FC<QAModuleProps> = ({
   };
 
   /**
-   * Save directly to scholar archive in Firestore
+   * Handle Save Inquiry action: saves to Firestore Scholar Archive AND Google Drive directly
    */
-  const handleSaveToArchiveOnly = async () => {
-    if (!currentAnswer || !currentUser || !currentInquiryId) return;
-    try {
-      await bookmarkInquiryInFirestore(currentUser.uid, currentInquiryId, true);
-      setIsSavedToArchive(true);
-      setSaveAuthPromptOpen(false);
-      setDriveSaveError(null);
-    } catch (err: any) {
-      console.error("Save to archive error:", err);
-    }
-  };
-
-  /**
-   * Directly authorize Google Drive and upload (triggered synchronously from user click)
-   */
-  const handleAuthorizeAndSaveDrive = async () => {
+  const handleSaveInquiryClick = async () => {
     if (!currentAnswer) return;
+
+    // 1. If user is logged out, prompt sign in or sign up
     if (!currentUser) {
-      setSaveAuthPromptOpen(true);
+      if (onOpenAuth) {
+        onOpenAuth("signin", "Sign in to save this inquiry directly to your archive and Google Drive");
+      } else {
+        setSaveAuthPromptOpen(true);
+      }
       return;
     }
 
     setIsSavingToDrive(true);
     setDriveSaveError(null);
 
+    const inquiryId = currentInquiryId || `inq-${Date.now()}`;
+    if (!currentInquiryId) setCurrentInquiryId(inquiryId);
+
     try {
-      // 1. Authorize Google Drive directly from this click gesture
-      const token = await authorizeGoogleDrive();
-
-      // 2. Upload to Google Drive using the acquired token
-      const driveResult = await uploadInquiryToGoogleDrive({
+      // Step 1: Save/Record directly into Firestore archive (guaranteed persistence)
+      await saveInquiryToFirestore(currentUser.uid, {
+        id: inquiryId,
         question: inquiryText,
-        answer: currentAnswer,
         focalAxiomId: focalAxiomId || undefined,
+        answer: currentAnswer,
         answerSource: answerSource || undefined,
-        token,
+        isFallback: isFallbackResponse,
+        timestamp: new Date().toISOString(),
+        isSaved: true,
+        savedAt: new Date().toISOString(),
       });
-
-      setSavedDriveResult(driveResult);
       setIsSavedToArchive(true);
-      setSaveAuthPromptOpen(false);
 
-      // 3. Update Firestore record
-      if (currentInquiryId) {
-        await updateInquiryDriveStatusInFirestore(currentUser.uid, currentInquiryId, {
+      // Step 2: Attempt Google Drive saving
+      let token = await getDriveAccessToken(false);
+      if (!token) {
+        // Direct click gesture: open authorization popup safely
+        try {
+          token = await authorizeGoogleDrive();
+        } catch (authErr: any) {
+          console.warn("Drive authorization skipped or blocked:", authErr);
+          if (authErr.code === "auth/popup-blocked") {
+            setDriveSaveError(
+              "Inquiry saved to Scholar Archive! (Google Drive popup was blocked by browser. Allow popups to sync to Drive)."
+            );
+          } else {
+            setDriveSaveError(
+              "Inquiry saved to Scholar Archive! (Google Drive authorization was not completed)."
+            );
+          }
+          return;
+        }
+      }
+
+      if (token) {
+        const driveResult = await uploadInquiryToGoogleDrive({
+          question: inquiryText,
+          answer: currentAnswer,
+          focalAxiomId: focalAxiomId || undefined,
+          answerSource: answerSource || undefined,
+          token,
+        });
+
+        setSavedDriveResult(driveResult);
+
+        // Update record with Drive metadata
+        await updateInquiryDriveStatusInFirestore(currentUser.uid, inquiryId, {
           driveFileId: driveResult.fileId,
           driveFileUrl: driveResult.webViewLink,
           driveFileName: driveResult.fileName,
         });
       }
     } catch (err: any) {
-      console.error("Save to Drive error:", err);
-      if (err.code === "auth/popup-blocked") {
-        setDriveSaveError(
-          "The authorization popup was blocked by your browser. Please allow popups for this site and click again."
-        );
-      } else {
-        setDriveSaveError(err.message || "Failed to save inquiry to Google Drive.");
-      }
+      console.error("Save error:", err);
+      setDriveSaveError(err.message || "Failed to sync inquiry to Google Drive.");
     } finally {
       setIsSavingToDrive(false);
-    }
-  };
-
-  /**
-   * Handle Save Inquiry action
-   */
-  const handleSaveInquiryClick = async () => {
-    if (!currentAnswer) return;
-
-    // 1. If user is logged out, show offer prompt to log in or create an account
-    if (!currentUser) {
-      setSaveAuthPromptOpen(true);
-      return;
-    }
-
-    // 2. If Drive is already authorized in memory, upload directly!
-    if (isDriveAuthorized) {
-      setIsSavingToDrive(true);
-      setDriveSaveError(null);
-      try {
-        const driveResult = await uploadInquiryToGoogleDrive({
-          question: inquiryText,
-          answer: currentAnswer,
-          focalAxiomId: focalAxiomId || undefined,
-          answerSource: answerSource || undefined,
-        });
-
-        setSavedDriveResult(driveResult);
-        setIsSavedToArchive(true);
-
-        // Update Firestore record
-        if (currentInquiryId) {
-          await updateInquiryDriveStatusInFirestore(currentUser.uid, currentInquiryId, {
-            driveFileId: driveResult.fileId,
-            driveFileUrl: driveResult.webViewLink,
-            driveFileName: driveResult.fileName,
-          });
-        }
-      } catch (err: any) {
-        console.error("Save to Drive error:", err);
-        setSaveAuthPromptOpen(true);
-        setDriveSaveError(err.message || "Please re-authorize Google Drive to continue.");
-      } finally {
-        setIsSavingToDrive(false);
-      }
-    } else {
-      // 3. Drive not yet authorized in this session:
-      // Bookmark into Firestore archive immediately, and prompt for Drive connection
-      if (currentInquiryId) {
-        await bookmarkInquiryInFirestore(currentUser.uid, currentInquiryId, true);
-        setIsSavedToArchive(true);
-      }
-      setSaveAuthPromptOpen(true);
     }
   };
 
@@ -641,13 +606,35 @@ export const QAModule: React.FC<QAModuleProps> = ({
                             <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Saved in Drive ↗</span>
                           </a>
+                        ) : isSavedToArchive ? (
+                          <div className="relative">
+                            <button
+                              id="save-inquiry-drive-btn"
+                              onClick={handleSaveInquiryClick}
+                              disabled={isSavingToDrive}
+                              title="Inquiry saved in Scholar Archive. Click to sync to Google Drive"
+                              className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 px-3 py-1 rounded-lg transition-all shadow-sm disabled:opacity-60"
+                            >
+                              {isSavingToDrive ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                                  <span>Syncing Drive...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>Saved in Archive (Sync Drive)</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         ) : (
                           <div className="relative">
                             <button
                               id="save-inquiry-drive-btn"
                               onClick={handleSaveInquiryClick}
                               disabled={isSavingToDrive}
-                              title="Save this inquiry and synthesized response to your personal Google Drive"
+                              title="Save this inquiry and synthesized response to your personal Google Drive and Archive"
                               className="flex items-center gap-1.5 text-[11px] font-semibold text-[#060E1D] bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] hover:brightness-105 px-3 py-1 rounded-lg transition-all shadow-sm disabled:opacity-60"
                             >
                               {isSavingToDrive ? (
@@ -703,62 +690,6 @@ export const QAModule: React.FC<QAModuleProps> = ({
                                     <UserPlus className="w-3.5 h-3.5 text-[#D4AF37]" />
                                     <span>Create Account (Visitor)</span>
                                   </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Drive Connect Popover for logged in users when Drive is not yet active */}
-                            {saveAuthPromptOpen && currentUser && !savedDriveResult && (
-                              <div className="absolute right-0 mt-2 w-80 rounded-xl bg-[#0A192F] border border-[#D4AF37]/50 shadow-2xl p-4 z-40 animate-in fade-in duration-150 text-left">
-                                <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#D4AF37]/20">
-                                  <div className="flex items-center gap-2">
-                                    <Cloud className="w-4 h-4 text-[#D4AF37]" />
-                                    <span className="text-xs font-bold text-[#F8F9FA]">
-                                      Google Drive Sync
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() => setSaveAuthPromptOpen(false)}
-                                    className="text-[#94A3B8] hover:text-[#F8F9FA] text-xs p-1"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-
-                                <p className="text-[11px] text-[#CBD5E1] leading-relaxed mb-3">
-                                  {isSavedToArchive
-                                    ? "✓ Inquiry is saved in your Scholar Archive. Authorize Google Drive to export a formatted Markdown document to your Drive."
-                                    : "Connect your Google Drive to export this inquiry and synthesized response into your personal Drive folder."}
-                                </p>
-
-                                <div className="space-y-2">
-                                  <button
-                                    onClick={handleAuthorizeAndSaveDrive}
-                                    disabled={isSavingToDrive}
-                                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] text-xs font-bold transition-all shadow-sm hover:brightness-105"
-                                  >
-                                    {isSavingToDrive ? (
-                                      <>
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Connecting & Uploading...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <FolderSync className="w-3.5 h-3.5" />
-                                        <span>Authorize & Save to Drive</span>
-                                      </>
-                                    )}
-                                  </button>
-
-                                  {!isSavedToArchive && (
-                                    <button
-                                      onClick={handleSaveToArchiveOnly}
-                                      className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/30 text-[#F3E5AB] text-xs font-medium transition-colors"
-                                    >
-                                      <BookOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
-                                      <span>Save to Scholar Archive Only</span>
-                                    </button>
-                                  )}
                                 </div>
                               </div>
                             )}

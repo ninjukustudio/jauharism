@@ -345,6 +345,7 @@ export const bookmarkInquiryInFirestore = async (
   await setDoc(
     docRef,
     {
+      userId,
       isSaved,
       savedAt: isSaved ? new Date().toISOString() : null,
       updatedAt: new Date().toISOString(),
