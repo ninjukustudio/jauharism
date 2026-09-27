@@ -205,7 +205,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
           await saveInquiryToFirestore(currentUser.uid, {
             id: newInquiryId,
             question: inquiryText,
-            focalAxiomId: focalAxiomId || undefined,
+            focalAxiomId: focalAxiomId || null,
             answer: generatedAnswer,
             answerSource: sourceName,
             isFallback: isFallback,
@@ -260,9 +260,9 @@ export const QAModule: React.FC<QAModuleProps> = ({
       await saveInquiryToFirestore(currentUser.uid, {
         id: inquiryId,
         question: inquiryText,
-        focalAxiomId: focalAxiomId || undefined,
+        focalAxiomId: focalAxiomId || null,
         answer: currentAnswer,
-        answerSource: answerSource || undefined,
+        answerSource: answerSource || "gemini-3.6-flash",
         isFallback: isFallbackResponse,
         timestamp: new Date().toISOString(),
         isSaved: true,

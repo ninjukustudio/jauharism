@@ -295,17 +295,34 @@ export const logOutUser = async (): Promise<void> => {
 
 // ==================== FIRESTORE INQUIRIES API ====================
 
+/**
+ * Strips undefined values recursively so Firestore never rejects payloads
+ */
+export function sanitizeFirestoreData<T extends Record<string, any>>(data: T): Record<string, any> {
+  const sanitized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+        sanitized[key] = sanitizeFirestoreData(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+  }
+  return sanitized;
+}
+
 export interface StoredInquiry {
   id: string;
   userId: string;
   question: string;
-  focalAxiomId?: string;
+  focalAxiomId?: string | null;
   answer: string;
   answerSource?: string;
   isFallback?: boolean;
   timestamp: string;
   isSaved?: boolean;          // explicitly saved/bookmarked by scholar
-  savedAt?: string;            // timestamp when saved
+  savedAt?: string | null;     // timestamp when saved
   savedToDrive?: boolean;
   driveFileId?: string;
   driveFileUrl?: string;
@@ -319,17 +336,14 @@ export const saveInquiryToFirestore = async (
   userId: string,
   inquiry: Omit<StoredInquiry, "userId">
 ): Promise<void> => {
-  if (!userId) return;
+  if (!userId || !inquiry?.id) return;
   const docRef = doc(db, "users", userId, "inquiries", inquiry.id);
-  await setDoc(
-    docRef,
-    {
-      ...inquiry,
-      userId,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+  const payload = sanitizeFirestoreData({
+    ...inquiry,
+    userId,
+    updatedAt: new Date().toISOString(),
+  });
+  await setDoc(docRef, payload, { merge: true });
 };
 
 /**
@@ -342,16 +356,13 @@ export const bookmarkInquiryInFirestore = async (
 ): Promise<void> => {
   if (!userId || !inquiryId) return;
   const docRef = doc(db, "users", userId, "inquiries", inquiryId);
-  await setDoc(
-    docRef,
-    {
-      userId,
-      isSaved,
-      savedAt: isSaved ? new Date().toISOString() : null,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+  const payload = sanitizeFirestoreData({
+    userId,
+    isSaved,
+    savedAt: isSaved ? new Date().toISOString() : null,
+    updatedAt: new Date().toISOString(),
+  });
+  await setDoc(docRef, payload, { merge: true });
 };
 
 /**
@@ -459,18 +470,17 @@ export const updateInquiryDriveStatusInFirestore = async (
 ): Promise<void> => {
   if (!userId || !inquiryId) return;
   const docRef = doc(db, "users", userId, "inquiries", inquiryId);
-  await setDoc(
-    docRef,
-    {
-      isSaved: true,
-      savedToDrive: true,
-      driveFileId: driveData.driveFileId,
-      driveFileUrl: driveData.driveFileUrl,
-      driveFileName: driveData.driveFileName,
-      savedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+  const payload = sanitizeFirestoreData({
+    userId,
+    isSaved: true,
+    savedToDrive: true,
+    driveFileId: driveData.driveFileId,
+    driveFileUrl: driveData.driveFileUrl,
+    driveFileName: driveData.driveFileName,
+    savedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  await setDoc(docRef, payload, { merge: true });
 };
 
 /**

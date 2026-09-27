@@ -160,7 +160,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       const driveResult = await uploadInquiryToGoogleDrive({
         question: inquiry.question,
         answer: inquiry.answer,
-        focalAxiomId: inquiry.focalAxiomId,
+        focalAxiomId: inquiry.focalAxiomId || undefined,
         answerSource: inquiry.answerSource,
         timestamp: inquiry.timestamp,
         token,
@@ -251,7 +251,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           ? {
               ...item,
               isSaved: newSavedStatus,
-              savedAt: newSavedStatus ? new Date().toISOString() : undefined,
+              savedAt: newSavedStatus ? new Date().toISOString() : null,
             }
           : item;
 
@@ -745,7 +745,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
                         {/* Re-ask in QA */}
                         <button
-                          onClick={() => onNavigateToQA(inquiry.question, inquiry.focalAxiomId)}
+                          onClick={() => onNavigateToQA(inquiry.question, inquiry.focalAxiomId || undefined)}
                           className="p-1.5 rounded-lg bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/20 text-[#94A3B8] hover:text-[#F8F9FA] transition-colors"
                           title="Open in Q&A Gateway"
                         >
