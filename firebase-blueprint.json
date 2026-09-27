@@ -27,6 +27,8 @@
         "answerSource": { "type": "string", "description": "Model or synthesizer source name" },
         "isFallback": { "type": "boolean", "description": "Whether answer came from local manifesto corpus fallback" },
         "timestamp": { "type": "string", "description": "ISO timestamp when the inquiry occurred" },
+        "isSaved": { "type": "boolean", "description": "Whether this inquiry is preserved in the scholar's permanent Saved Inquiries archive" },
+        "savedAt": { "type": "string", "description": "ISO timestamp when the inquiry was bookmarked or saved" },
         "savedToDrive": { "type": "boolean", "description": "Whether this inquiry has been exported to Google Drive" },
         "driveFileId": { "type": "string", "description": "Google Drive File ID if exported" },
         "driveFileUrl": { "type": "string", "description": "Google Drive Web View link if exported" },
@@ -42,7 +44,7 @@
     },
     "/users/{userId}/inquiries/{inquiryId}": {
       "schema": "UserInquiry",
-      "description": "User inquiry records (up to 10 most recent displayed in dashboard)"
+      "description": "User inquiry records (10 most recent inquiries + unlimited permanent saved inquiries archive)"
     }
   }
 }

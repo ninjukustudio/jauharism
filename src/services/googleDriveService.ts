@@ -1,4 +1,4 @@
-import { getDriveAccessToken } from "./firebase.ts";
+import { getDriveAccessToken, setCachedDriveToken } from "./firebase.ts";
 
 export interface SaveDriveResult {
   fileId: string;
@@ -63,10 +63,13 @@ export async function uploadInquiryToGoogleDrive(params: {
   focalAxiomId?: string;
   answerSource?: string;
   timestamp?: string;
+  token?: string;
 }): Promise<SaveDriveResult> {
-  const accessToken = await getDriveAccessToken(true);
+  const accessToken = params.token || (await getDriveAccessToken(false));
   if (!accessToken) {
-    throw new Error("Google Drive authorization was not granted. Please sign in with Google to enable Drive saving.");
+    throw new Error(
+      "Google Drive authorization is required. Please click 'Connect Google Drive' or authorize access to enable saving."
+    );
   }
 
   const dateStr = new Date().toISOString().split("T")[0];
@@ -138,6 +141,10 @@ ${params.answer}
   );
 
   if (!uploadRes.ok) {
+    if (uploadRes.status === 401) {
+      setCachedDriveToken(null);
+      throw new Error("Your Google Drive session has expired. Please re-authorize Google Drive to continue.");
+    }
     const errorData = await uploadRes.json().catch(() => ({}));
     throw new Error(
       errorData.error?.message || `Google Drive upload failed with status ${uploadRes.status}`
@@ -157,18 +164,18 @@ ${params.answer}
         }
       );
       if (metaRes.ok) {
-        const meta = await metaRes.json();
-        webViewLink = meta.webViewLink;
+        const metaData = await metaRes.json();
+        webViewLink = metaData.webViewLink;
       }
-    } catch (e) {
-      // Fallback direct URL
-      webViewLink = `https://drive.google.com/file/d/${uploadedFile.id}/view`;
+    } catch (metaErr) {
+      console.warn("Could not retrieve webViewLink from Drive metadata:", metaErr);
     }
   }
 
   return {
     fileId: uploadedFile.id,
-    webViewLink: webViewLink || `https://drive.google.com/file/d/${uploadedFile.id}/view`,
+    webViewLink:
+      webViewLink || `https://drive.google.com/file/d/${uploadedFile.id}/view`,
     fileName: uploadedFile.name || fileName,
   };
 }
