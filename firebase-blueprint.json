@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and account settings",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The unique user identifier matching Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Display name of the user" },
+        "photoURL": { "type": "string", "description": "Optional user avatar URL" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of account creation" },
+        "lastLoginAt": { "type": "string", "description": "ISO timestamp of most recent login" }
+      },
+      "required": ["userId", "email", "createdAt"]
+    },
+    "UserInquiry": {
+      "title": "UserInquiry",
+      "description": "A Jauhari AI epistemological inquiry record saved for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the inquiry" },
+        "userId": { "type": "string", "description": "UID of the user who owns this inquiry" },
+        "question": { "type": "string", "description": "The inquiry prompt submitted by user" },
+        "focalAxiomId": { "type": "string", "description": "Associated axiom ID (if any)" },
+        "answer": { "type": "string", "description": "The full epistemological synthesis response" },
+        "answerSource": { "type": "string", "description": "Model or synthesizer source name" },
+        "isFallback": { "type": "boolean", "description": "Whether answer came from local manifesto corpus fallback" },
+        "timestamp": { "type": "string", "description": "ISO timestamp when the inquiry occurred" },
+        "savedToDrive": { "type": "boolean", "description": "Whether this inquiry has been exported to Google Drive" },
+        "driveFileId": { "type": "string", "description": "Google Drive File ID if exported" },
+        "driveFileUrl": { "type": "string", "description": "Google Drive Web View link if exported" },
+        "driveFileName": { "type": "string", "description": "Name of the file in Google Drive" }
+      },
+      "required": ["id", "userId", "question", "answer", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account document"
+    },
+    "/users/{userId}/inquiries/{inquiryId}": {
+      "schema": "UserInquiry",
+      "description": "User inquiry records (up to 10 most recent displayed in dashboard)"
+    }
+  }
+}

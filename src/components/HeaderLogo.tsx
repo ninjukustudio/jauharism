@@ -16,10 +16,10 @@ export const HeaderLogo: React.FC<HeaderLogoProps> = ({
       aria-label="Project Jauhari - Islamic Rationalism Revival Framework"
     >
       <defs>
-        {/* Background Gradient matching stone-900 header background (#1c1917) */}
+        {/* Background Gradient */}
         <linearGradient id="headerBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#1c1917" stopOpacity="0" />
-          <stop offset="100%" stopColor="#141210" stopOpacity="0" />
+          <stop offset="0%" stopColor="#060E1D" />
+          <stop offset="100%" stopColor="#0A192F" />
         </linearGradient>
 
         {/* Gold Gradients for Gem & Astrolabe */}
@@ -42,7 +42,7 @@ export const HeaderLogo: React.FC<HeaderLogoProps> = ({
         </filter>
       </defs>
 
-      {/* Background: Transparent to seamlessly blend with header stone-900/95 */}
+      {/* Background: Transparent to seamlessly blend with header bg */}
       <rect width="900" height="320" fill="transparent" />
 
       {/* Decorative Astrolabe Background Circles */}
@@ -63,10 +63,10 @@ export const HeaderLogo: React.FC<HeaderLogoProps> = ({
           strokeDasharray="12 6"
         />
 
-        {/* Secondary Structural Framework (Heptagon) matched to header stone-900 (#1c1917) */}
+        {/* Secondary Structural Framework (Heptagon) in Navy Blue #0A192F */}
         <polygon
           points="0,-75 58,-46 72,17 32,68 -32,68 -72,17 -58,-46"
-          fill="#1c1917"
+          fill="#0A192F"
           stroke="url(#headerGoldLight)"
           strokeWidth="2"
           opacity="0.9"
@@ -90,7 +90,7 @@ export const HeaderLogo: React.FC<HeaderLogoProps> = ({
 
         {/* Center Point: The Absolute Axis of Tawhid */}
         <circle cx="0" cy="0" r="5" fill="#F8F9FA" />
-        <circle cx="0" cy="0" r="2" fill="#1c1917" />
+        <circle cx="0" cy="0" r="2" fill="#0A192F" />
       </g>
 
       {/* TYPOGRAPHY SECTION */}

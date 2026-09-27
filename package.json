@@ -19,6 +19,7 @@
     "dompurify": "^3.4.15",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^12.19.0",
     "katex": "^0.18.7",
     "lucide-react": "^0.546.0",
     "marked": "^18.0.14",

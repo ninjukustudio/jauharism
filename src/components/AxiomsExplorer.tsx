@@ -10,7 +10,6 @@ import {
   ArrowRight,
   Shield,
   Microscope,
-  HelpCircle,
   Copy,
   Check,
 } from "lucide-react";
@@ -33,17 +32,17 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
   };
 
   return (
-    <section id="axioms-explorer-section" className="py-12 bg-stone-50 border-b border-stone-200">
+    <section id="axioms-explorer-section" className="py-12 bg-[#060E1D] text-[#F8F9FA] border-b border-[#D4AF37]/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="text-xs uppercase font-bold tracking-widest text-amber-700 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-300">
+          <span className="text-xs uppercase font-bold tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 px-3.5 py-1 rounded-full border border-[#D4AF37]/30">
             Section 3 of Manifesto
           </span>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-cinzel font-bold text-stone-900 mt-3">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-cinzel font-bold text-[#F8F9FA] mt-3">
             The Seven Main Axioms
           </h2>
-          <p className="text-sm sm:text-base text-stone-600 mt-2">
+          <p className="text-sm sm:text-base text-[#94A3B8] mt-2">
             An integrated, non-contradictory epistemological architecture harmonizing absolute transcendence, intrinsic causality, demonstrative reason, and meritocratic governance.
           </p>
         </div>
@@ -60,26 +59,26 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                   setSelectedAxiomId(axiom.id);
                   setActiveSectionTab("statement");
                 }}
-                className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-lg border text-left transition-all ${
+                className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? "bg-stone-900 text-stone-100 border-stone-800 shadow-md ring-2 ring-amber-500/50"
-                    : "bg-white text-stone-700 border-stone-200 hover:border-stone-400 hover:bg-stone-50"
+                    ? "bg-[#0A192F] text-[#F8F9FA] border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.25)] ring-1 ring-[#D4AF37]"
+                    : "bg-[#060E1D] text-[#94A3B8] border-[#D4AF37]/25 hover:border-[#D4AF37]/50 hover:bg-[#0A192F]/60"
                 }`}
               >
                 <div
-                  className={`w-7 h-7 rounded flex items-center justify-center font-cinzel font-bold text-xs ${
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center font-cinzel font-bold text-xs ${
                     isSelected
-                      ? "bg-amber-500 text-stone-950"
-                      : "bg-stone-100 text-stone-600 border border-stone-200"
+                      ? "bg-[#D4AF37] text-[#060E1D]"
+                      : "bg-[#0A192F] text-[#D4AF37] border border-[#D4AF37]/30"
                   }`}
                 >
                   {axiom.number}
                 </div>
                 <div>
-                  <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
+                  <div className={`text-xs font-bold leading-tight flex items-center gap-1.5 ${isSelected ? "text-[#F8F9FA]" : "text-[#CBD5E1]"}`}>
                     <span>{axiom.latinTitle}</span>
                   </div>
-                  <div className={`text-[10px] truncate max-w-[140px] ${isSelected ? "text-stone-400" : "text-stone-500"}`}>
+                  <div className={`text-[10px] truncate max-w-[140px] ${isSelected ? "text-[#D4AF37]" : "text-[#94A3B8]"}`}>
                     {axiom.coreConcept}
                   </div>
                 </div>
@@ -89,46 +88,46 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
         </div>
 
         {/* Selected Axiom Detailed Explorer Card */}
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+        <div className="bg-[#0A192F] rounded-2xl border border-[#D4AF37]/35 shadow-2xl overflow-hidden">
           {/* Axiom Header Bar */}
-          <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 p-6 sm:p-8 border-b border-stone-800">
+          <div className="bg-[#060E1D] text-[#F8F9FA] p-6 sm:p-8 border-b border-[#D4AF37]/25">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-cinzel text-xs font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <span className="font-cinzel text-xs font-bold px-2.5 py-1 rounded bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/40">
                     AXIOM {activeAxiom.number}
                   </span>
-                  <span className="text-xs text-stone-400 font-mono">
+                  <span className="text-xs text-[#94A3B8] font-mono">
                     {activeAxiom.latinTitle}
                   </span>
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-cinzel font-bold text-stone-100 tracking-tight">
+                <h3 className="text-2xl sm:text-3xl font-cinzel font-bold text-[#F8F9FA] tracking-tight">
                   {activeAxiom.title}
                 </h3>
-                <p className="text-sm text-stone-300 mt-1">
+                <p className="text-sm text-[#CBD5E1] mt-1">
                   {activeAxiom.coreConcept}
                 </p>
               </div>
 
               <div className="flex sm:flex-col items-end justify-between sm:justify-center">
-                <span className="font-amiri text-2xl sm:text-3xl font-bold text-amber-400">
+                <span className="font-amiri text-2xl sm:text-3xl font-bold text-[#D4AF37]">
                   {activeAxiom.arabicTitle}
                 </span>
-                <span className="text-[11px] text-stone-400 mt-1 uppercase tracking-wider">
+                <span className="text-[11px] text-[#94A3B8] mt-1 uppercase tracking-wider">
                   Baseline of Faith
                 </span>
               </div>
             </div>
 
             {/* Quick Internal Nav Tabs */}
-            <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-stone-800/80">
+            <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-[#D4AF37]/20">
               <button
                 id={`axiom-tab-statement-${activeAxiom.id}`}
                 onClick={() => setActiveSectionTab("statement")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   activeSectionTab === "statement"
-                    ? "bg-amber-500 text-stone-950 shadow-sm"
-                    : "text-stone-300 hover:text-white bg-stone-800/70 hover:bg-stone-800"
+                    ? "bg-[#D4AF37] text-[#060E1D] shadow-sm font-bold"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] bg-[#0A192F] border border-[#D4AF37]/25 hover:bg-[#0E2445]"
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
@@ -138,10 +137,10 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
               <button
                 id={`axiom-tab-naql-${activeAxiom.id}`}
                 onClick={() => setActiveSectionTab("naql")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   activeSectionTab === "naql"
-                    ? "bg-amber-500 text-stone-950 shadow-sm"
-                    : "text-stone-300 hover:text-white bg-stone-800/70 hover:bg-stone-800"
+                    ? "bg-[#D4AF37] text-[#060E1D] shadow-sm font-bold"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] bg-[#0A192F] border border-[#D4AF37]/25 hover:bg-[#0E2445]"
                 }`}
               >
                 <Shield className="w-3.5 h-3.5" />
@@ -151,10 +150,10 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
               <button
                 id={`axiom-tab-crucible-${activeAxiom.id}`}
                 onClick={() => setActiveSectionTab("crucible")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   activeSectionTab === "crucible"
-                    ? "bg-amber-500 text-stone-950 shadow-sm"
-                    : "text-stone-300 hover:text-white bg-stone-800/70 hover:bg-stone-800"
+                    ? "bg-[#D4AF37] text-[#060E1D] shadow-sm font-bold"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] bg-[#0A192F] border border-[#D4AF37]/25 hover:bg-[#0E2445]"
                 }`}
               >
                 <Scale className="w-3.5 h-3.5" />
@@ -164,10 +163,10 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
               <button
                 id={`axiom-tab-science-${activeAxiom.id}`}
                 onClick={() => setActiveSectionTab("science")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   activeSectionTab === "science"
-                    ? "bg-amber-500 text-stone-950 shadow-sm"
-                    : "text-stone-300 hover:text-white bg-stone-800/70 hover:bg-stone-800"
+                    ? "bg-[#D4AF37] text-[#060E1D] shadow-sm font-bold"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] bg-[#0A192F] border border-[#D4AF37]/25 hover:bg-[#0E2445]"
                 }`}
               >
                 <Microscope className="w-3.5 h-3.5" />
@@ -177,9 +176,9 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
               <button
                 id={`axiom-ask-ai-trigger-${activeAxiom.id}`}
                 onClick={() => onAskAboutAxiom(activeAxiom.id, activeAxiom.title)}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-[#060E1D] shadow-sm transition-all hover:brightness-105"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5 text-[#060E1D]" />
                 <span>Inquire about Axiom {activeAxiom.number}</span>
               </button>
             </div>
@@ -191,28 +190,28 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
             {activeSectionTab === "statement" && (
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-xs uppercase tracking-wider font-bold text-stone-500 mb-2">
+                  <h4 className="text-xs uppercase tracking-wider font-bold text-[#D4AF37] mb-2">
                     Primary Axiomatic Statement
                   </h4>
-                  <div className="p-5 rounded-xl bg-stone-50 border border-stone-200">
-                    <p className="text-base sm:text-lg font-medium text-stone-900 leading-relaxed">
+                  <div className="p-5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 shadow-inner">
+                    <p className="text-base sm:text-lg font-medium text-[#F8F9FA] leading-relaxed">
                       "{activeAxiom.statement}"
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs uppercase tracking-wider font-bold text-stone-500 mb-3">
+                  <h4 className="text-xs uppercase tracking-wider font-bold text-[#D4AF37] mb-3">
                     Axiomatic Corollaries & Deductions
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {activeAxiom.corollaries.map((cor, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start gap-3 p-4 rounded-lg bg-stone-50/70 border border-stone-200/80"
+                        className="flex items-start gap-3 p-4 rounded-xl bg-[#060E1D] border border-[#D4AF37]/20"
                       >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        <span className="text-xs sm:text-sm text-stone-700 leading-relaxed font-normal">
+                        <CheckCircle2 className="w-4 h-4 text-[#D4AF37] flex-shrink-0 mt-0.5" />
+                        <span className="text-xs sm:text-sm text-[#CBD5E1] leading-relaxed font-normal">
                           {cor}
                         </span>
                       </div>
@@ -221,11 +220,11 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <span className="text-xs text-stone-500 font-medium">Associated Concepts:</span>
+                  <span className="text-xs text-[#94A3B8] font-medium">Associated Concepts:</span>
                   {activeAxiom.keywords.map((kw, i) => (
                     <span
                       key={i}
-                      className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-700 border border-stone-200"
+                      className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#060E1D] text-[#D4AF37] border border-[#D4AF37]/30"
                     >
                       {kw}
                     </span>
@@ -238,10 +237,10 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
             {activeSectionTab === "naql" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs uppercase tracking-wider font-bold text-stone-500">
+                  <h4 className="text-xs uppercase tracking-wider font-bold text-[#D4AF37]">
                     Authoritative Revelatory & Historical Anchors
                   </h4>
-                  <span className="text-xs text-stone-500">
+                  <span className="text-xs text-[#94A3B8]">
                     Quranic Naṣṣ & Authentic Sunnah
                   </span>
                 </div>
@@ -250,16 +249,16 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                   {activeAxiom.textualEvidence.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-5 rounded-xl border border-stone-200 bg-white hover:border-stone-300 transition-all shadow-sm"
+                      className="p-5 rounded-xl border border-[#D4AF37]/25 bg-[#060E1D] hover:border-[#D4AF37]/50 transition-all shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-4 mb-3">
                         <span
                           className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
                             item.category === "quran"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40"
                               : item.category === "hadith"
-                              ? "bg-amber-100 text-amber-800 border border-amber-200"
-                              : "bg-blue-100 text-blue-800 border border-blue-200"
+                              ? "bg-[#D4AF37]/15 text-[#F3E5AB] border border-[#D4AF37]/40"
+                              : "bg-[#0A192F] text-cyan-300 border border-cyan-500/40"
                           }`}
                         >
                           {item.category === "quran"
@@ -272,34 +271,34 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleCopyQuote(item.quote)}
-                            className="text-stone-400 hover:text-stone-600 p-1 rounded hover:bg-stone-100 transition-colors"
+                            className="text-[#94A3B8] hover:text-[#F8F9FA] p-1 rounded hover:bg-[#0A192F] transition-colors"
                             title="Copy translation"
                           >
                             {copiedQuote === item.quote ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
                           </button>
-                          <span className="text-xs font-semibold text-stone-600 font-mono">
+                          <span className="text-xs font-semibold text-[#CBD5E1] font-mono">
                             {item.source}
                           </span>
                         </div>
                       </div>
 
                       {item.arabic && (
-                        <div className="text-right py-2 mb-2 font-amiri text-lg sm:text-xl font-bold text-stone-800 leading-loose border-b border-stone-100">
+                        <div className="text-right py-2 mb-2 font-amiri text-lg sm:text-xl font-bold text-[#F3E5AB] leading-loose border-b border-[#D4AF37]/15">
                           {item.arabic}
                         </div>
                       )}
 
-                      <p className="text-stone-800 text-sm sm:text-base font-medium italic mb-2">
+                      <p className="text-[#F8F9FA] text-sm sm:text-base font-medium italic mb-2">
                         "{item.quote}"
                       </p>
 
                       {item.commentary && (
-                        <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-2.5 rounded border border-stone-200/60 mt-2">
-                          <span className="font-bold text-stone-700">Epistemological Analysis: </span>
+                        <p className="text-xs text-[#CBD5E1] leading-relaxed bg-[#0A192F] p-3 rounded-lg border border-[#D4AF37]/20 mt-2">
+                          <span className="font-bold text-[#D4AF37]">Epistemological Analysis: </span>
                           {item.commentary}
                         </p>
                       )}
@@ -312,40 +311,40 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
             {/* TAB 3: Dialectical Crucible */}
             {activeSectionTab === "crucible" && (
               <div className="space-y-6">
-                <div className="p-4 rounded-lg bg-stone-100 border border-stone-200 text-xs text-stone-700 leading-relaxed">
-                  <span className="font-bold text-stone-900">The Dialectical Crucible: </span>
+                <div className="p-4 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 text-xs text-[#CBD5E1] leading-relaxed">
+                  <span className="font-bold text-[#D4AF37]">The Dialectical Crucible: </span>
                   Evaluating traditionalist occasionalist/fatalist objections against the rigorous rationalist methodology of Project Jauhari.
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Traditionalist Counter */}
-                  <div className="p-6 rounded-xl bg-rose-50/60 border border-rose-200 shadow-sm flex flex-col justify-between">
+                  <div className="p-6 rounded-xl bg-red-950/30 border border-red-500/35 shadow-sm flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 text-rose-800 font-bold text-sm mb-3">
-                        <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-red-300 font-bold text-sm mb-3">
+                        <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
                         <span>Traditionalist & Occasionalist Counter-Argument</span>
                       </div>
-                      <p className="text-xs sm:text-sm text-stone-800 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#CBD5E1] leading-relaxed">
                         {activeAxiom.traditionalistCounter}
                       </p>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-rose-200/80 text-[11px] text-rose-700 font-medium">
+                    <div className="mt-4 pt-3 border-t border-red-500/30 text-[11px] text-red-300 font-medium">
                       Status: Hermeneutical & Theological Fallacy
                     </div>
                   </div>
 
                   {/* Jauhari Rationalist Rebuttal */}
-                  <div className="p-6 rounded-xl bg-emerald-50/60 border border-emerald-200 shadow-sm flex flex-col justify-between">
+                  <div className="p-6 rounded-xl bg-emerald-950/30 border border-emerald-500/35 shadow-sm flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm mb-3">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm mb-3">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                         <span>Project Jauhari Rationalist Rebuttal</span>
                       </div>
-                      <p className="text-xs sm:text-sm text-stone-800 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#CBD5E1] leading-relaxed">
                         {activeAxiom.jauhariRebuttal}
                       </p>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-emerald-200/80 text-[11px] text-emerald-700 font-medium">
+                    <div className="mt-4 pt-3 border-t border-emerald-500/30 text-[11px] text-emerald-300 font-medium">
                       Status: Proven Epistemological Resolution (Burhān)
                     </div>
                   </div>
@@ -357,10 +356,10 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
             {activeSectionTab === "science" && (
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-xs uppercase tracking-wider font-bold text-stone-500 mb-2">
+                  <h4 className="text-xs uppercase tracking-wider font-bold text-[#D4AF37] mb-2">
                     Contemporary Scientific, Empirical & Civic Alignment
                   </h4>
-                  <p className="text-sm text-stone-600">
+                  <p className="text-sm text-[#CBD5E1]">
                     How Axiom {activeAxiom.number} bridges revelatory truth with established physical laws and democratic governance:
                   </p>
                 </div>
@@ -369,16 +368,16 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                   {activeAxiom.scientificCivicAlignment.map((field, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-xl border border-stone-200 bg-stone-50 flex items-center gap-3"
+                      className="p-4 rounded-xl border border-[#D4AF37]/20 bg-[#060E1D] flex items-center gap-3"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-stone-200 text-stone-700 flex items-center justify-center flex-shrink-0 font-bold text-xs">
+                      <div className="w-8 h-8 rounded-lg bg-[#0A192F] text-[#D4AF37] border border-[#D4AF37]/30 flex items-center justify-center flex-shrink-0 font-bold text-xs">
                         {idx + 1}
                       </div>
                       <div>
-                        <div className="text-xs sm:text-sm font-bold text-stone-900">
+                        <div className="text-xs sm:text-sm font-bold text-[#F8F9FA]">
                           {field}
                         </div>
-                        <div className="text-[11px] text-stone-500">
+                        <div className="text-[11px] text-[#94A3B8]">
                           Field: {activeAxiom.modernDisciplines}
                         </div>
                       </div>
@@ -386,8 +385,8 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                   ))}
                 </div>
 
-                <div className="p-5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-stone-800 leading-relaxed">
-                  <span className="font-bold text-amber-900 block mb-1">
+                <div className="p-5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 text-xs text-[#CBD5E1] leading-relaxed">
+                  <span className="font-bold text-[#D4AF37] block mb-1">
                     Epistemological Synthesis:
                   </span>
                   Far from viewing modern empirical sciences as alien secular importations, Project Jauhari recognizes them as the systematic reading of God's unwritten scripture—the Book of Creation (Kitāb al-Kawn).
@@ -396,18 +395,18 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
             )}
 
             {/* Bottom Actions */}
-            <div className="mt-8 pt-6 border-t border-stone-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="text-xs text-stone-500">
-                Viewing <span className="font-semibold text-stone-800">Axiom {activeAxiom.number}</span> of VII in Project Jauhari
+            <div className="mt-8 pt-6 border-t border-[#D4AF37]/20 flex flex-wrap items-center justify-between gap-4">
+              <div className="text-xs text-[#94A3B8]">
+                Viewing <span className="font-semibold text-[#F8F9FA]">Axiom {activeAxiom.number}</span> of VII in Project Jauhari
               </div>
 
               <div className="flex items-center gap-3">
                 <button
                   id={`axiom-inquire-ai-bottom-${activeAxiom.id}`}
                   onClick={() => onAskAboutAxiom(activeAxiom.id, activeAxiom.title)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-amber-300 font-semibold text-xs sm:text-sm transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#060E1D] hover:bg-[#0E2445] text-[#F3E5AB] border border-[#D4AF37]/40 font-semibold text-xs sm:text-sm transition-all shadow-sm"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
                   <span>Ask AI about Axiom {activeAxiom.number}</span>
                 </button>
               </div>

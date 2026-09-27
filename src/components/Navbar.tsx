@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { User } from "firebase/auth";
 import {
   Compass,
   Sparkles,
@@ -8,14 +9,20 @@ import {
   TableProperties,
   Library,
   ChevronDown,
+  LayoutDashboard,
+  User as UserIcon,
+  LogOut,
 } from "lucide-react";
 import { HeaderLogo } from "./HeaderLogo.tsx";
 import { PWAInstallButton } from "./PWAInstallButton.tsx";
+import { logOutUser } from "../services/firebase.ts";
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenAIQuestion?: () => void;
+  currentUser?: User | null;
+  onOpenAuth?: (mode?: "signin" | "signup", contextMsg?: string) => void;
 }
 
 interface ArchiveItem {
@@ -29,9 +36,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onOpenAIQuestion,
+  currentUser = null,
+  onOpenAuth,
 }) => {
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Grouped archival items for decluttered PC navigation
   const archiveItems: ArchiveItem[] = [
@@ -65,6 +76,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const allNavItems = [
     { id: "axioms", label: "7 Axioms", icon: Layers },
     { id: "triad", label: "The Triad", icon: Compass },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "matrix", label: "Matrix", icon: TableProperties },
     { id: "archaeology", label: "Lineage", icon: History },
     { id: "blueprint", label: "Blueprint", icon: BookOpen },
@@ -74,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const isArchiveActive = archiveItems.some((item) => item.id === activeTab);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -83,11 +95,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       ) {
         setIsArchiveOpen(false);
       }
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsArchiveOpen(false);
+        setIsUserMenuOpen(false);
       }
     };
 
@@ -105,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-stone-900/95 backdrop-blur-md border-b border-stone-800 text-stone-100 transition-colors">
+    <header className="sticky top-0 z-50 bg-[#060E1D]/95 backdrop-blur-md border-b border-[#D4AF37]/25 text-[#F8F9FA] transition-colors shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-18">
           {/* Logo & Identity using the provided Project Jauhari emblem & typography */}
@@ -121,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <HeaderLogo className="h-16 sm:h-17 w-auto max-w-[270px] sm:max-w-[300px] transition-transform duration-200 group-hover:scale-[1.02]" />
           </button>
 
-          {/* Decluttered PC Navigation */}
+          {/* Decluttered PC Navigation in Navy & Gold */}
           <nav className="hidden lg:flex items-center gap-1.5" aria-label="Main Navigation">
             {/* 1. The 7 Axioms */}
             <button
@@ -129,13 +148,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab("axioms")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                 activeTab === "axioms"
-                  ? "bg-stone-800 text-amber-300 shadow-sm border border-stone-700 font-semibold"
-                  : "text-stone-300 hover:text-white hover:bg-stone-800/60"
+                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
+                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
               }`}
             >
               <Layers
                 className={`w-3.5 h-3.5 ${
-                  activeTab === "axioms" ? "text-amber-400" : "text-stone-400"
+                  activeTab === "axioms" ? "text-[#D4AF37]" : "text-[#94A3B8]"
                 }`}
               />
               <span>7 Axioms</span>
@@ -147,13 +166,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab("triad")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                 activeTab === "triad"
-                  ? "bg-stone-800 text-amber-300 shadow-sm border border-stone-700 font-semibold"
-                  : "text-stone-300 hover:text-white hover:bg-stone-800/60"
+                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
+                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
               }`}
             >
               <Compass
                 className={`w-3.5 h-3.5 ${
-                  activeTab === "triad" ? "text-amber-400" : "text-stone-400"
+                  activeTab === "triad" ? "text-[#D4AF37]" : "text-[#94A3B8]"
                 }`}
               />
               <span>The Triad</span>
@@ -167,32 +186,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsArchiveOpen((prev) => !prev)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                   isArchiveActive
-                    ? "bg-stone-800 text-amber-300 border border-stone-700 font-semibold"
+                    ? "bg-[#0A192F] text-[#F3E5AB] border border-[#D4AF37]/50 font-semibold"
                     : isArchiveOpen
-                    ? "bg-stone-800/80 text-stone-100"
-                    : "text-stone-300 hover:text-white hover:bg-stone-800/60"
+                    ? "bg-[#0A192F]/80 text-[#F8F9FA]"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
                 }`}
                 aria-expanded={isArchiveOpen}
                 aria-haspopup="true"
               >
                 <BookOpen
                   className={`w-3.5 h-3.5 ${
-                    isArchiveActive ? "text-amber-400" : "text-stone-400"
+                    isArchiveActive ? "text-[#D4AF37]" : "text-[#94A3B8]"
                   }`}
                 />
                 <span>Archive & Lineage</span>
                 <ChevronDown
                   className={`w-3 h-3 transition-transform duration-200 ${
-                    isArchiveOpen ? "rotate-180 text-amber-400" : "text-stone-400"
+                    isArchiveOpen ? "rotate-180 text-[#D4AF37]" : "text-[#94A3B8]"
                   }`}
                 />
               </button>
 
-              {/* Glassmorphic Dropdown Panel */}
+              {/* Glassmorphic Dropdown Panel in Navy & Gold */}
               {isArchiveOpen && (
-                <div className="absolute left-0 mt-2 w-72 rounded-xl bg-stone-900/98 backdrop-blur-xl border border-stone-750 shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-3 py-1.5 mb-1 border-b border-stone-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/80">
+                <div className="absolute left-0 mt-2 w-72 rounded-xl bg-[#0A192F]/98 backdrop-blur-xl border border-[#D4AF37]/40 shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-3 py-1.5 mb-1 border-b border-[#D4AF37]/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#D4AF37]">
                       Historical & Strategic Archives
                     </span>
                   </div>
@@ -206,15 +225,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onClick={() => handleSelectArchive(item.id)}
                         className={`w-full flex items-start gap-3 p-2.5 rounded-lg text-left transition-all ${
                           isCurrent
-                            ? "bg-amber-500/10 text-amber-300 border border-amber-500/30"
-                            : "hover:bg-stone-800 text-stone-200 hover:text-white"
+                            ? "bg-[#D4AF37]/15 text-[#F3E5AB] border border-[#D4AF37]/40"
+                            : "hover:bg-[#0E2445] text-[#CBD5E1] hover:text-[#F8F9FA]"
                         }`}
                       >
                         <div
                           className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${
                             isCurrent
-                              ? "bg-amber-500/20 text-amber-400"
-                              : "bg-stone-800 text-stone-400"
+                              ? "bg-[#D4AF37]/25 text-[#D4AF37]"
+                              : "bg-[#060E1D] text-[#94A3B8] border border-[#D4AF37]/20"
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5" />
@@ -223,10 +242,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <div className="text-xs font-semibold leading-tight flex items-center gap-1.5">
                             <span>{item.label}</span>
                             {isCurrent && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></span>
                             )}
                           </div>
-                          <p className="text-[11px] text-stone-400 leading-snug mt-0.5">
+                          <p className="text-[11px] text-[#94A3B8] leading-snug mt-0.5">
                             {item.sublabel}
                           </p>
                         </div>
@@ -243,61 +262,132 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab("qa")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                 activeTab === "qa"
-                  ? "bg-amber-950/60 text-amber-300 shadow-sm border border-amber-500/50 font-semibold"
-                  : "text-amber-300/90 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/20"
+                  ? "bg-[#D4AF37] text-[#060E1D] shadow-md border border-[#F3E5AB] font-bold"
+                  : "text-[#F3E5AB] hover:text-[#FFF8DC] hover:bg-[#0A192F] border border-[#D4AF37]/40"
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className={`w-3.5 h-3.5 ${activeTab === "qa" ? "text-[#060E1D]" : "text-[#D4AF37]"}`} />
               <span>Q&A Gateway</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            </button>
+
+            {/* 5. User Dashboard & Auth Portal */}
+            <button
+              id="nav-item-dashboard"
+              onClick={() => setActiveTab("dashboard")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                activeTab === "dashboard"
+                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
+                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60 border border-transparent"
+              }`}
+            >
+              <LayoutDashboard
+                className={`w-3.5 h-3.5 ${
+                  activeTab === "dashboard" ? "text-[#D4AF37]" : "text-[#94A3B8]"
+                }`}
+              />
+              <span>Dashboard</span>
             </button>
           </nav>
 
-          {/* Right Action Bar: PWA Install Button + Ask AI CTA */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* PWA In-App Install Button */}
+          {/* Right Action Icons & Scholar Auth Indicator */}
+          <div className="flex items-center gap-2.5">
+            {/* PWA Install Button */}
             <PWAInstallButton />
 
-            {/* Direct Ask AI Action Button */}
-            <button
-              id="header-ask-ai-btn"
-              onClick={() => {
-                setActiveTab("qa");
-                if (onOpenAIQuestion) onOpenAIQuestion();
-              }}
-              className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-stone-950 shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50 hover:shadow-amber-500/20"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-stone-950" />
-              <span className="hidden sm:inline">Ask Jauhari AI</span>
-              <span className="sm:hidden">Ask AI</span>
-            </button>
+            {/* User Profile / Auth Toggle */}
+            {currentUser ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-xl bg-[#0A192F] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-[#F8F9FA] transition-all shadow-sm"
+                  title="Scholar Profile"
+                >
+                  <div className="w-6 h-6 rounded-full bg-[#060E1D] border border-[#D4AF37] flex items-center justify-center text-[#D4AF37] text-xs font-bold font-cinzel">
+                    {currentUser.displayName ? currentUser.displayName[0].toUpperCase() : currentUser.email ? currentUser.email[0].toUpperCase() : "S"}
+                  </div>
+                  <span className="text-xs font-semibold max-w-[80px] sm:max-w-[120px] truncate hidden sm:inline">
+                    {currentUser.displayName || currentUser.email?.split("@")[0]}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-[#D4AF37]" />
+                </button>
+
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#0A192F] border border-[#D4AF37]/40 shadow-2xl p-1.5 z-50 animate-in fade-in duration-150">
+                    <div className="px-3 py-2 border-b border-[#D4AF37]/20">
+                      <p className="text-xs font-semibold text-[#F8F9FA] truncate">
+                        {currentUser.displayName || "Scholar"}
+                      </p>
+                      <p className="text-[11px] text-[#94A3B8] truncate">{currentUser.email}</p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setActiveTab("dashboard");
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0E2445] rounded-lg transition-colors text-left"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Inquiries Dashboard</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        logOutUser();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-300 hover:text-red-200 hover:bg-red-950/40 rounded-lg transition-colors text-left"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => onOpenAuth && onOpenAuth("signin")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0A192F] hover:bg-[#0E2445] border border-[#D4AF37]/50 text-[#F3E5AB] text-xs font-semibold transition-all shadow-sm"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Mobile Navigation bar with clean horizontal scrolling */}
-      <div className="lg:hidden overflow-x-auto py-2 px-4 border-t border-stone-800/80 bg-stone-950/90 flex items-center gap-1.5 text-xs dark-scrollbar">
-        {allNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              id={`mobile-nav-${item.id}`}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md whitespace-nowrap font-medium transition-colors ${
-                isActive
-                  ? "bg-stone-800 text-amber-300 border border-stone-700"
-                  : item.highlight
-                  ? "text-amber-300/90 bg-amber-950/30 border border-amber-500/20"
-                  : "text-stone-400 hover:text-stone-200"
-              }`}
-            >
-              <Icon className="w-3 h-3" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+        {/* Mobile Navigation Scroll Strip in Navy & Gold */}
+        <div className="lg:hidden flex items-center gap-1.5 py-2.5 overflow-x-auto no-scrollbar border-t border-[#D4AF37]/15">
+          {allNavItems.map((item) => {
+            const Icon = item.icon;
+            const isSelected = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`mobile-nav-item-${item.id}`}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+                  isSelected
+                    ? item.highlight
+                      ? "bg-[#D4AF37] text-[#060E1D] font-bold"
+                      : "bg-[#0A192F] text-[#F3E5AB] border border-[#D4AF37]/50 font-semibold"
+                    : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
+                }`}
+              >
+                <Icon
+                  className={`w-3 h-3 ${
+                    isSelected
+                      ? item.highlight
+                        ? "text-[#060E1D]"
+                        : "text-[#D4AF37]"
+                      : "text-[#94A3B8]"
+                  }`}
+                />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </header>
   );
