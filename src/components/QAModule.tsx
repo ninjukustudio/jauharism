@@ -273,7 +273,7 @@ export const QAModule: React.FC<QAModuleProps> = ({
     setIsSavingToArchive(true);
     try {
       // Save directly into Firestore database archive
-      await saveInquiryToFirestore(currentUser.uid, {
+      const res = await saveInquiryToFirestore(currentUser.uid, {
         id: inquiryId,
         question: inquiryText,
         focalAxiomId: focalAxiomId || null,
@@ -286,8 +286,12 @@ export const QAModule: React.FC<QAModuleProps> = ({
       });
 
       setIsSavedToArchive(true);
-      setSaveNotification("Saved directly to your Firestore Scholar Archive!");
-      setTimeout(() => setSaveNotification(null), 4000);
+      if (res.success) {
+        setSaveNotification("Saved directly to your Firestore Scholar Archive!");
+      } else {
+        setSaveNotification("Saved to your Scholar Archive (Local Cache; see Dashboard for Cloud Sync)");
+      }
+      setTimeout(() => setSaveNotification(null), 5000);
     } catch (err: any) {
       console.error("Save to Firestore error:", err);
       setSaveNotification("Saved to your Scholar Archive!");

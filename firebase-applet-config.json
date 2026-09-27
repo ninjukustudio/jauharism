@@ -1,5 +1,7 @@
 {
   "projectId": "jauharism",
+  "databaseId": "ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1",
+  "firestoreDatabaseId": "ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1",
   "appId": "1:296974631120:web:1bc9a0f8447ea1ff7cded5",
   "apiKey": "AIzaSyB78YZrMWiowuj4XDO8_7gMxwaRV_-zTEY",
   "authDomain": "jauharism.firebaseapp.com",

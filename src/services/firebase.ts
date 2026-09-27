@@ -389,8 +389,8 @@ export interface StoredInquiry {
 export const saveInquiryToFirestore = async (
   userId: string,
   inquiry: Omit<StoredInquiry, "userId">
-): Promise<void> => {
-  if (!userId || !inquiry?.id) return;
+): Promise<{ success: boolean; error?: string }> => {
+  if (!userId || !inquiry?.id) return { success: false, error: "Missing userId or inquiry ID" };
 
   const fullRecord: StoredInquiry = {
     ...inquiry,
@@ -411,9 +411,52 @@ export const saveInquiryToFirestore = async (
 
   try {
     await setDoc(docRef, payload, { merge: true });
-  } catch (err) {
-    console.warn("Firestore remote write failed (cached locally):", err);
+    return { success: true };
+  } catch (err: any) {
+    console.error("Firestore remote write failed:", err);
+    return { success: false, error: err?.message || String(err) };
   }
+};
+
+/**
+ * Synchronize all locally cached inquiries directly into Cloud Firestore
+ */
+export const syncLocalInquiriesToFirestore = async (
+  userId: string
+): Promise<{ success: boolean; syncedCount: number; failedCount: number; error?: string }> => {
+  if (!userId) return { success: false, syncedCount: 0, failedCount: 0, error: "No user signed in" };
+  const items = getLocalInquiries(userId);
+  if (items.length === 0) return { success: true, syncedCount: 0, failedCount: 0 };
+
+  let syncedCount = 0;
+  let failedCount = 0;
+  let lastError = "";
+
+  for (const inquiry of items) {
+    try {
+      const docRef = doc(db, "users", userId, "inquiries", inquiry.id);
+      const payload = sanitizeFirestoreData({
+        ...inquiry,
+        focalAxiomId: inquiry.focalAxiomId || null,
+        userId,
+        timestamp: inquiry.timestamp || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(docRef, payload, { merge: true });
+      syncedCount++;
+    } catch (err: any) {
+      failedCount++;
+      lastError = err?.message || String(err);
+      console.warn("Failed to sync item to Firestore:", inquiry.id, err);
+    }
+  }
+
+  return {
+    success: failedCount === 0,
+    syncedCount,
+    failedCount,
+    error: lastError || undefined,
+  };
 };
 
 /**
@@ -423,8 +466,8 @@ export const bookmarkInquiryInFirestore = async (
   userId: string,
   inquiryId: string,
   isSaved = true
-): Promise<void> => {
-  if (!userId || !inquiryId) return;
+): Promise<{ success: boolean; error?: string }> => {
+  if (!userId || !inquiryId) return { success: false };
 
   // Update local cache
   const localList = getLocalInquiries(userId);
@@ -445,8 +488,10 @@ export const bookmarkInquiryInFirestore = async (
   });
   try {
     await setDoc(docRef, payload, { merge: true });
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.warn("Firestore bookmark update failed:", err);
+    return { success: false, error: err?.message || String(err) };
   }
 };
 
@@ -477,12 +522,18 @@ export const fetchSavedInquiriesFromFirestore = async (
  */
 export const fetchAllUserInquiriesFromFirestore = async (
   userId: string
-): Promise<{ recent: StoredInquiry[]; saved: StoredInquiry[]; all: StoredInquiry[] }> => {
+): Promise<{
+  recent: StoredInquiry[];
+  saved: StoredInquiry[];
+  all: StoredInquiry[];
+  cloudError?: string | null;
+}> => {
   if (!userId) return { recent: [], saved: [], all: [] };
 
   // 1. Load local cache immediately
   const localItems = getLocalInquiries(userId);
   const localMap = new Map<string, StoredInquiry>(localItems.map((item) => [item.id, item]));
+  let cloudError: string | null = null;
 
   // 2. Load Firestore remote items
   try {
@@ -521,9 +572,10 @@ export const fetchAllUserInquiriesFromFirestore = async (
       return timeB - timeA;
     });
 
-    return { recent, saved, all: mergedList };
-  } catch (error) {
+    return { recent, saved, all: mergedList, cloudError: null };
+  } catch (error: any) {
     console.warn("Firestore fetch failed, falling back to local storage cache:", error);
+    cloudError = error?.message || "Cloud Firestore permission denied";
 
     // If Firestore fails, return local cache cleanly
     const mergedList = Array.from(localMap.values());
@@ -536,7 +588,7 @@ export const fetchAllUserInquiriesFromFirestore = async (
       return timeB - timeA;
     });
 
-    return { recent, saved, all: mergedList };
+    return { recent, saved, all: mergedList, cloudError };
   }
 };
 

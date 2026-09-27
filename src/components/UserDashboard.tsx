@@ -5,6 +5,7 @@ import {
   updateInquiryDriveStatusInFirestore,
   deleteInquiryFromFirestore,
   bookmarkInquiryInFirestore,
+  syncLocalInquiriesToFirestore,
   StoredInquiry,
   logOutUser,
   hasDriveToken,
@@ -41,6 +42,9 @@ import {
   Check,
   Download,
   AlertCircle,
+  Database,
+  Copy,
+  HelpCircle,
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -77,6 +81,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   // Google Drive Save Dialogue State
   const [driveDialogInquiry, setDriveDialogInquiry] = useState<StoredInquiry | null>(null);
   const [isDriveDialogOpen, setIsDriveDialogOpen] = useState<boolean>(false);
+
+  // Cloud Firestore Sync & Diagnostic State
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const [isSyncingToCloud, setIsSyncingToCloud] = useState<boolean>(false);
+  const [cloudSyncMessage, setCloudSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [copiedRules, setCopiedRules] = useState<boolean>(false);
+  const [showRulesGuide, setShowRulesGuide] = useState<boolean>(false);
 
   // Sync Google Drive token state
   useEffect(() => {
@@ -147,6 +158,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setRecentInquiries(data.recent);
       setSavedInquiries(data.saved);
       setAllInquiries(data.all);
+      setCloudSyncError(data.cloudError || null);
 
       // Auto-expand target inquiry, or first item if none is expanded
       if (targetInquiry) {
@@ -169,6 +181,65 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Sync all local cached inquiries directly to Cloud Firestore database
+   */
+  const handleSyncToFirestore = async () => {
+    if (!currentUser) return;
+    setIsSyncingToCloud(true);
+    setCloudSyncMessage(null);
+    try {
+      const res = await syncLocalInquiriesToFirestore(currentUser.uid);
+      if (res.success) {
+        setCloudSyncMessage({
+          text: `Success! Synchronized ${res.syncedCount} inquiry${res.syncedCount === 1 ? "" : "s"} directly to Cloud Firestore database. Refresh Google Cloud Console to view your records!`,
+          isError: false,
+        });
+        setCloudSyncError(null);
+        await loadInquiries();
+      } else {
+        setCloudSyncMessage({
+          text: `Sync note: ${res.syncedCount} saved, ${res.failedCount} pending (${res.error || "Permission Denied"}). Please publish the security rules in Google Cloud / Firebase Console below.`,
+          isError: true,
+        });
+      }
+    } catch (err: any) {
+      setCloudSyncMessage({
+        text: `Sync error: ${err?.message || "Check permissions"}`,
+        isError: true,
+      });
+    } finally {
+      setIsSyncingToCloud(false);
+    }
+  };
+
+  const firestoreRulesText = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+      match /inquiries/{inquiryId} {
+        allow read, write, delete: if isOwner(userId);
+      }
+    }
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}`;
+
+  const handleCopyRules = () => {
+    navigator.clipboard.writeText(firestoreRulesText);
+    setCopiedRules(true);
+    setTimeout(() => setCopiedRules(false), 3000);
   };
 
   /**
@@ -500,7 +571,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               {/* Sign Out */}
               <button
                 onClick={() => logOutUser()}
-                className="px-3 py-2 rounded-xl bg-[#060E1D] hover:bg-red-950/40 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-semibold transition-colors flex items-center gap-1.5"
+                className="px-3 py-2 rounded-xl bg-[#060E1D] hover:bg-red-950/40 border border-red-500/30 text-red-300 hover:text-red-200 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                 title="Sign out of Firebase Auth"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -508,6 +579,150 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Cloud Firestore Database & Sync Card */}
+        <div className="mb-8 rounded-2xl bg-[#0A192F] border border-[#D4AF37]/30 p-5 sm:p-6 shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D4AF37]/15">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/30 text-[#D4AF37] mt-0.5">
+                <Database className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm sm:text-base font-bold text-[#F8F9FA]">
+                    Cloud Firestore Database
+                  </h2>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#060E1D] border border-[#D4AF37]/20 text-[#D4AF37]">
+                    ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1
+                  </span>
+                  {cloudSyncError ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950/70 border border-amber-500/50 text-amber-300 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      Rules Pending
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Cloud Synced
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#94A3B8] mt-1">
+                  Project <span className="text-[#CBD5E1] font-mono">jauharism</span> · Saved inquiries in local cache: <span className="font-bold text-[#F3E5AB]">{savedInquiries.length}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={handleSyncToFirestore}
+                disabled={isSyncingToCloud}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] hover:brightness-105 text-[#060E1D] text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                title="Push all locally stored inquiries directly into Cloud Firestore"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-[#060E1D] ${isSyncingToCloud ? "animate-spin" : ""}`} />
+                <span>{isSyncingToCloud ? "Syncing to Cloud..." : "Sync Local Archive to Cloud Firestore"}</span>
+              </button>
+
+              <button
+                onClick={() => setShowRulesGuide(!showRulesGuide)}
+                className="px-3 py-2 rounded-xl bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/35 text-[#CBD5E1] hover:text-[#F3E5AB] text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>{showRulesGuide ? "Hide Rules Guide" : "Security Rules Guide"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sync Status Banner */}
+          {cloudSyncMessage && (
+            <div
+              className={`mt-4 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs animate-in fade-in ${
+                cloudSyncMessage.isError
+                  ? "bg-amber-950/70 border-amber-500/50 text-amber-200"
+                  : "bg-emerald-950/70 border-emerald-500/40 text-emerald-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {cloudSyncMessage.isError ? (
+                  <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                )}
+                <span>{cloudSyncMessage.text}</span>
+              </div>
+              <button
+                onClick={() => setCloudSyncMessage(null)}
+                className="text-xs hover:underline opacity-80 cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Collapsible Rules Guide */}
+          {(showRulesGuide || cloudSyncError) && (
+            <div className="mt-4 pt-4 border-t border-[#D4AF37]/15 space-y-3 text-xs text-[#CBD5E1]">
+              <div className="p-3.5 rounded-xl bg-[#060E1D] border border-amber-500/30 text-amber-200/90 leading-relaxed">
+                <span className="font-semibold text-amber-300">Why was your database empty?</span> Named Firestore databases (like <span className="font-mono text-amber-200">ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1</span>) in Google Cloud start in locked mode (<code className="bg-black/40 px-1 py-0.5 rounded text-amber-300">allow read, write: if false;</code>). Your inquiries are safely preserved in browser cache right now. Once you publish the rule below in your Google Cloud / Firebase console, click <strong>"Sync Local Archive to Cloud Firestore"</strong> to push them all to your cloud database!
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                <span className="font-semibold text-[#F8F9FA]">Required Firestore Security Rules:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleCopyRules}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#F3E5AB] transition-colors cursor-pointer"
+                  >
+                    {copiedRules ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <span>Copy Rules</span>
+                      </>
+                    )}
+                  </button>
+
+                  <a
+                    href="https://console.cloud.google.com/firestore/databases/ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1/rules?project=jauharism"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#CBD5E1] hover:text-[#F3E5AB] transition-colors"
+                  >
+                    <span>Open GCP Console Rules</span>
+                    <ExternalLink className="w-3 h-3 text-[#D4AF37]" />
+                  </a>
+
+                  <a
+                    href="https://console.firebase.google.com/project/jauharism/firestore/databases/ai-studio-projectjauhariis-d187aa17-15c9-48ef-b68d-fe2b5afaa0c1/rules"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#060E1D] hover:bg-[#0E2445] border border-[#D4AF37]/40 text-xs text-[#CBD5E1] hover:text-[#F3E5AB] transition-colors"
+                  >
+                    <span>Open Firebase Rules</span>
+                    <ExternalLink className="w-3 h-3 text-[#D4AF37]" />
+                  </a>
+                </div>
+              </div>
+
+              <pre className="p-3.5 rounded-xl bg-[#060E1D] border border-[#D4AF37]/25 font-mono text-[11px] text-[#CBD5E1] overflow-x-auto leading-relaxed select-all">
+                {firestoreRulesText}
+              </pre>
+
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#94A3B8]">
+                <span>1. Click either console link above</span>
+                <span>→</span>
+                <span>2. Paste the rules and click <strong>Publish</strong></span>
+                <span>→</span>
+                <span>3. Click <strong>Sync Local Archive to Cloud Firestore</strong> above</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Status Toast */}
