@@ -44,44 +44,38 @@ export const Navbar: React.FC<NavbarProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Grouped archival items for decluttered PC navigation
+  // Grouped archival items for decluttered PC navigation in Manifesto section order (Sections 4, 5, 6)
   const archiveItems: ArchiveItem[] = [
     {
       id: "matrix",
       label: "Summary Matrix",
-      sublabel: "Comparative theological evaluation",
+      sublabel: "Section 4 • Comparative theological evaluation",
       icon: TableProperties,
-    },
-    {
-      id: "archaeology",
-      label: "Basran Lineage",
-      sublabel: "Historical archaeology & genealogy",
-      icon: History,
     },
     {
       id: "blueprint",
       label: "Action Blueprint",
-      sublabel: "Civilizational reform roadmap",
+      sublabel: "Section 5 • Civilizational reform roadmap",
       icon: BookOpen,
     },
     {
       id: "bibliography",
-      label: "Bibliography",
-      sublabel: "Primary classical manuscripts & sources",
+      label: "Primary Bibliography",
+      sublabel: "Section 6 • Classical manuscripts & sources",
       icon: Library,
     },
   ];
 
-  // Mobile flat nav items
+  // Mobile navigation items in exact Manifesto section order (Sections 1-6 + Tools)
   const allNavItems = [
-    { id: "axioms", label: "7 Axioms", icon: Layers },
     { id: "triad", label: "The Triad", icon: Compass },
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "matrix", label: "Matrix", icon: TableProperties },
     { id: "archaeology", label: "Lineage", icon: History },
+    { id: "axioms", label: "7 Axioms", icon: Layers },
+    { id: "matrix", label: "Matrix", icon: TableProperties },
     { id: "blueprint", label: "Blueprint", icon: BookOpen },
     { id: "bibliography", label: "Sources", icon: Library },
     { id: "qa", label: "Q&A Gateway", icon: Sparkles, highlight: true },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   ];
 
   const isArchiveActive = archiveItems.some((item) => item.id === activeTab);
@@ -140,27 +134,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <HeaderLogo className="h-16 sm:h-17 w-auto max-w-[270px] sm:max-w-[300px] transition-transform duration-200 group-hover:scale-[1.02]" />
           </button>
 
-          {/* Decluttered PC Navigation in Navy & Gold */}
+          {/* Decluttered PC Navigation in Navy & Gold in Manifesto Section Order */}
           <nav className="hidden lg:flex items-center gap-1.5" aria-label="Main Navigation">
-            {/* 1. The 7 Axioms */}
-            <button
-              id="nav-item-axioms"
-              onClick={() => setActiveTab("axioms")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
-                activeTab === "axioms"
-                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
-                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
-              }`}
-            >
-              <Layers
-                className={`w-3.5 h-3.5 ${
-                  activeTab === "axioms" ? "text-[#D4AF37]" : "text-[#94A3B8]"
-                }`}
-              />
-              <span>7 Axioms</span>
-            </button>
-
-            {/* 2. The Triad */}
+            {/* 1. Section 1: The Triad */}
             <button
               id="nav-item-triad"
               onClick={() => setActiveTab("triad")}
@@ -178,7 +154,43 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>The Triad</span>
             </button>
 
-            {/* 3. Archival & Lineage Dropdown (Groups Matrix, Lineage, Blueprint, Bibliography) */}
+            {/* 2. Section 2: Basran Lineage */}
+            <button
+              id="nav-item-archaeology"
+              onClick={() => setActiveTab("archaeology")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                activeTab === "archaeology"
+                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
+                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
+              }`}
+            >
+              <History
+                className={`w-3.5 h-3.5 ${
+                  activeTab === "archaeology" ? "text-[#D4AF37]" : "text-[#94A3B8]"
+                }`}
+              />
+              <span>Basran Lineage</span>
+            </button>
+
+            {/* 3. Section 3: The 7 Axioms */}
+            <button
+              id="nav-item-axioms"
+              onClick={() => setActiveTab("axioms")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                activeTab === "axioms"
+                  ? "bg-[#0A192F] text-[#F3E5AB] shadow-sm border border-[#D4AF37]/50 font-semibold"
+                  : "text-[#CBD5E1] hover:text-[#F8F9FA] hover:bg-[#0A192F]/60"
+              }`}
+            >
+              <Layers
+                className={`w-3.5 h-3.5 ${
+                  activeTab === "axioms" ? "text-[#D4AF37]" : "text-[#94A3B8]"
+                }`}
+              />
+              <span>7 Axioms</span>
+            </button>
+
+            {/* 4. Sections 4–6: Archive & Action Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 id="nav-item-archive-dropdown-btn"
@@ -199,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     isArchiveActive ? "text-[#D4AF37]" : "text-[#94A3B8]"
                   }`}
                 />
-                <span>Archive & Lineage</span>
+                <span>Archive & Action</span>
                 <ChevronDown
                   className={`w-3 h-3 transition-transform duration-200 ${
                     isArchiveOpen ? "rotate-180 text-[#D4AF37]" : "text-[#94A3B8]"
@@ -212,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="absolute left-0 mt-2 w-72 rounded-xl bg-[#0A192F]/98 backdrop-blur-xl border border-[#D4AF37]/40 shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="px-3 py-1.5 mb-1 border-b border-[#D4AF37]/20">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#D4AF37]">
-                      Historical & Strategic Archives
+                      Manifesto Archives & Blueprint
                     </span>
                   </div>
                   {archiveItems.map((item) => {

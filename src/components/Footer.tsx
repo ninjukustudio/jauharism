@@ -31,18 +31,10 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
             <ul className="space-y-2">
               <li>
                 <button
-                  onClick={() => onSelectTab("axioms")}
-                  className="hover:text-[#F8F9FA] transition-colors"
-                >
-                  The Seven Main Axioms
-                </button>
-              </li>
-              <li>
-                <button
                   onClick={() => onSelectTab("triad")}
                   className="hover:text-[#F8F9FA] transition-colors"
                 >
-                  The Triad (Jawhar, Jauh Hari, Jauhari)
+                  Section 1: The Triad (Jawhar, Jauh Hari, Jauhari)
                 </button>
               </li>
               <li>
@@ -50,7 +42,15 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
                   onClick={() => onSelectTab("archaeology")}
                   className="hover:text-[#F8F9FA] transition-colors"
                 >
-                  Historical Archaeology: Basran Synthesis
+                  Section 2: Historical Archaeology (Basran Synthesis)
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onSelectTab("axioms")}
+                  className="hover:text-[#F8F9FA] transition-colors"
+                >
+                  Section 3: The Seven Main Axioms
                 </button>
               </li>
               <li>
@@ -58,7 +58,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
                   onClick={() => onSelectTab("matrix")}
                   className="hover:text-[#F8F9FA] transition-colors"
                 >
-                  Summary Comparative Matrix
+                  Section 4: Summary Comparative Matrix
                 </button>
               </li>
             </ul>
@@ -74,7 +74,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
                   onClick={() => onSelectTab("blueprint")}
                   className="hover:text-[#F8F9FA] transition-colors"
                 >
-                  Implementation Blueprint
+                  Section 5: Implementation Blueprint
                 </button>
               </li>
               <li>
@@ -82,7 +82,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
                   onClick={() => onSelectTab("bibliography")}
                   className="hover:text-[#F8F9FA] transition-colors"
                 >
-                  Primary Classical Bibliography
+                  Section 6: Primary Classical Bibliography
                 </button>
               </li>
               <li>
