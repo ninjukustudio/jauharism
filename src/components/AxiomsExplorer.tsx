@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SEVEN_AXIOMS } from "../data/manifestoData.ts";
 import { AxiomData } from "../types.ts";
 import {
@@ -16,12 +16,32 @@ import {
 
 interface AxiomsExplorerProps {
   onAskAboutAxiom: (axiomId: string, axiomTitle: string) => void;
+  selectedAxiomId?: string;
+  onSelectAxiomId?: (axiomId: string) => void;
 }
 
-export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom }) => {
-  const [selectedAxiomId, setSelectedAxiomId] = useState<string>("axiom-i");
+export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({
+  onAskAboutAxiom,
+  selectedAxiomId: propSelectedAxiomId,
+  onSelectAxiomId,
+}) => {
+  const [internalSelectedAxiomId, setInternalSelectedAxiomId] = useState<string>("axiom-i");
   const [activeSectionTab, setActiveSectionTab] = useState<"statement" | "naql" | "crucible" | "science">("statement");
   const [copiedQuote, setCopiedQuote] = useState<string | null>(null);
+
+  const selectedAxiomId = propSelectedAxiomId ?? internalSelectedAxiomId;
+
+  const handleSelectAxiom = (axiomId: string) => {
+    setInternalSelectedAxiomId(axiomId);
+    onSelectAxiomId?.(axiomId);
+    setActiveSectionTab("statement");
+  };
+
+  useEffect(() => {
+    if (propSelectedAxiomId) {
+      setActiveSectionTab("statement");
+    }
+  }, [propSelectedAxiomId]);
 
   const activeAxiom: AxiomData = SEVEN_AXIOMS.find((a) => a.id === selectedAxiomId) || SEVEN_AXIOMS[0];
 
@@ -56,8 +76,7 @@ export const AxiomsExplorer: React.FC<AxiomsExplorerProps> = ({ onAskAboutAxiom 
                 key={axiom.id}
                 id={`axiom-tab-btn-${axiom.id}`}
                 onClick={() => {
-                  setSelectedAxiomId(axiom.id);
-                  setActiveSectionTab("statement");
+                  handleSelectAxiom(axiom.id);
                 }}
                 className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border text-left transition-all ${
                   isSelected

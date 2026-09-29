@@ -151,7 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   activeTab === "triad" ? "text-[#D4AF37]" : "text-[#94A3B8]"
                 }`}
               />
-              <span>The Triad</span>
+              <span>Triad</span>
             </button>
 
             {/* 2. Section 2: Basran Lineage */}
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   activeTab === "archaeology" ? "text-[#D4AF37]" : "text-[#94A3B8]"
                 }`}
               />
-              <span>Basran Lineage</span>
+              <span>Lineage</span>
             </button>
 
             {/* 3. Section 3: The 7 Axioms */}
@@ -187,7 +187,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   activeTab === "axioms" ? "text-[#D4AF37]" : "text-[#94A3B8]"
                 }`}
               />
-              <span>7 Axioms</span>
+              <span>Axioms</span>
             </button>
 
             {/* 4. Sections 4–6: Archive & Action Dropdown */}
@@ -211,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     isArchiveActive ? "text-[#D4AF37]" : "text-[#94A3B8]"
                   }`}
                 />
-                <span>Archive & Action</span>
+                <span>Summaries</span>
                 <ChevronDown
                   className={`w-3 h-3 transition-transform duration-200 ${
                     isArchiveOpen ? "rotate-180 text-[#D4AF37]" : "text-[#94A3B8]"
@@ -279,7 +279,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Sparkles className={`w-3.5 h-3.5 ${activeTab === "qa" ? "text-[#060E1D]" : "text-[#D4AF37]"}`} />
-              <span>Q&A Gateway</span>
+              <span>Q&A</span>
             </button>
 
             {/* 5. User Dashboard & Auth Portal */}

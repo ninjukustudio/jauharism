@@ -72,7 +72,9 @@ export const QAModule: React.FC<QAModuleProps> = ({
   onOpenAuth,
   onViewDashboard,
 }) => {
-  const [qaMode, setQaMode] = useState<"faqs" | "ai-gateway">("faqs");
+  const [qaMode, setQaMode] = useState<"faqs" | "ai-gateway">(
+    initialQuestion || initialAxiomId ? "ai-gateway" : "faqs"
+  );
   const [selectedFaqCategory, setSelectedFaqCategory] = useState<string>("All");
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>("faq-1");
 
@@ -87,6 +89,21 @@ export const QAModule: React.FC<QAModuleProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedAnswer, setCopiedAnswer] = useState<boolean>(false);
   const [inquiryHistory, setInquiryHistory] = useState<UserInquiryHistory[]>([]);
+
+  // Synchronize when initialQuestion or initialAxiomId change
+  useEffect(() => {
+    if (initialQuestion) {
+      setInquiryText(initialQuestion);
+      setQaMode("ai-gateway");
+    }
+  }, [initialQuestion]);
+
+  useEffect(() => {
+    if (initialAxiomId) {
+      setFocalAxiomId(initialAxiomId);
+      setQaMode("ai-gateway");
+    }
+  }, [initialAxiomId]);
 
   // Drive Save State & Dialog
   const [currentInquiryId, setCurrentInquiryId] = useState<string | null>(null);
@@ -467,7 +484,10 @@ export const QAModule: React.FC<QAModuleProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto">
             {/* Left Column: Input Form & Suggested Questions */}
             <div className="lg:col-span-6 space-y-6">
-              <div className="bg-[#0A192F] rounded-2xl p-6 border border-[#D4AF37]/30 shadow-xl">
+              <div
+                id="qa-inquiry-submission-card"
+                className="bg-[#0A192F] rounded-2xl p-6 border border-[#D4AF37]/30 shadow-xl scroll-mt-24"
+              >
                 <div className="flex items-center justify-between mb-4 border-b border-[#D4AF37]/20 pb-3">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#D4AF37]" />

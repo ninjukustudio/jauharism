@@ -4,7 +4,7 @@ import { TableProperties, Search, Sparkles, ExternalLink } from "lucide-react";
 
 interface SummaryMatrixProps {
   onSelectAxiom: (axiomNumber: string) => void;
-  onAskAI: (axiomName: string) => void;
+  onAskAI: (axiomNumber: string, axiomName: string) => void;
 }
 
 export const SummaryMatrix: React.FC<SummaryMatrixProps> = ({ onSelectAxiom, onAskAI }) => {
@@ -118,9 +118,10 @@ export const SummaryMatrix: React.FC<SummaryMatrixProps> = ({ onSelectAxiom, onA
                           Details
                         </button>
                         <button
-                          onClick={() => onAskAI(row.name)}
+                          id={`matrix-ask-ai-btn-${row.number}`}
+                          onClick={() => onAskAI(row.number, row.name)}
                           className="p-1 rounded-lg bg-[#D4AF37] hover:bg-[#F3E5AB] text-[#060E1D] transition-colors"
-                          title="Ask AI regarding this Axiom"
+                          title={`Ask AI regarding Axiom ${row.number}: ${row.name}`}
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                         </button>

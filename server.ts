@@ -1,5 +1,7 @@
-import express, { Request, Response } from "express";
+import express from "express";
+import type { Request, Response } from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -11,7 +13,7 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.DEFAULT_APP_PORT ? parseInt(process.env.DEFAULT_APP_PORT, 10) : 3000;
 
 app.use(express.json());
 
@@ -138,14 +140,28 @@ Please provide a comprehensive, directly relevant, and intellectually rigorous r
 
 // Start Vite middleware in dev or static files in prod
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const appDir = path.resolve(import.meta.dirname || process.cwd());
+  const distPath = path.join(appDir, "dist");
+  const hasDist = fs.existsSync(path.join(distPath, "index.html"));
+
+  const isTsxRunner = process.execArgv.some((arg) => arg.includes("tsx"));
+  const isDev = isTsxRunner || process.env.npm_lifecycle_event === "dev";
+
+  if (!isDev && hasDist) {
+    // Production / Cloud Run mode: serve pre-built static assets
+    app.use(express.static(distPath));
+    app.get("*", (_req: Request, res: Response) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else if (isDev) {
+    // Development mode: Vite middleware
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // Fallback: serve dist if available
     app.use(express.static(distPath));
     app.get("*", (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));

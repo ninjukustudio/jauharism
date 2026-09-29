@@ -17,6 +17,7 @@ import { SEVEN_AXIOMS } from "./data/manifestoData.ts";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("axioms");
+  const [selectedAxiomId, setSelectedAxiomId] = useState<string>("axiom-i");
   const [qaInitialQuestion, setQaInitialQuestion] = useState<string>("");
   const [qaInitialAxiomId, setQaInitialAxiomId] = useState<string>("");
   const [dashboardTargetInquiry, setDashboardTargetInquiry] = useState<StoredInquiry | null>(null);
@@ -61,27 +62,81 @@ export default function App() {
     }, 100);
   };
 
-  const handleAskAIMatrix = (axiomName: string) => {
-    setQaInitialQuestion(
-      `Please explain the epistemological proof and scriptural anchor for ${axiomName} in Project Jauhari.`
+  const handleAskAIMatrix = (axiomNumber: string, axiomName: string) => {
+    const matchedAxiom = SEVEN_AXIOMS.find(
+      (a) =>
+        a.number.toUpperCase() === axiomNumber.trim().toUpperCase() ||
+        a.id.toLowerCase() === axiomNumber.trim().toLowerCase() ||
+        a.title.toLowerCase().includes(axiomName.toLowerCase()) ||
+        a.latinTitle.toLowerCase().includes(axiomName.toLowerCase())
     );
+
+    const axiomId = matchedAxiom ? matchedAxiom.id : "";
+
+    const exampleInquiries: Record<string, string> = {
+      "axiom-i":
+        "How does Axiom I (Absolute Transcendence and Cosmic Order) establish natural laws (sunan Allāh) and refute anthropomorphic literalism?",
+      "axiom-ii":
+        "How does Axiom II (Objective Justice and Intrinsic Causality) establish moral free will and refute radical occasionalism?",
+      "axiom-iii":
+        "How does Axiom III (Epistemic Primacy of Intellect & Evidence) harmonize revelatory text (naql) with demonstrative logic (burhān) through linguistic taʾwīl?",
+      "axiom-iv":
+        "How does Axiom IV (Empirical Verification and Falsification) ground scientific inquiry and falsifiability in the classical date-palm pollination Hadith?",
+      "axiom-v":
+        "How does Axiom V (Ethical Teleology and Dynamic Adaptation) govern human welfare (maṣlaḥah) and ongoing institutional ijtihād?",
+      "axiom-vi":
+        "How does Axiom VI (Historical Lineage and Basran Synthesis) prove that rationalism was an indigenous 1st-century Basran tradition rather than Greek borrowing?",
+      "axiom-vii":
+        "How does Axiom VII (Meritocratic Civic Governance) formulate political authority as a revocable civic contract (bayʿah) and reject quietist submission to tyranny?",
+    };
+
+    const tailoredQuestion =
+      (axiomId && exampleInquiries[axiomId]) ||
+      `Please explain the epistemological proof and scriptural anchor for Axiom ${axiomNumber} (${axiomName}) in Project Jauhari, and how it resolves classical theological debates.`;
+
+    setQaInitialAxiomId(axiomId);
+    setQaInitialQuestion(tailoredQuestion);
     setActiveTab("qa");
+
     setTimeout(() => {
-      const qaElem = document.getElementById("qa-module-section");
-      if (qaElem) {
-        qaElem.scrollIntoView({ behavior: "smooth" });
+      const submissionCard =
+        document.getElementById("qa-inquiry-submission-card") ||
+        document.getElementById("qa-inquiry-textarea") ||
+        document.getElementById("qa-module-section");
+
+      if (submissionCard) {
+        submissionCard.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-    }, 100);
+
+      const textarea = document.getElementById("qa-inquiry-textarea") as HTMLTextAreaElement | null;
+      if (textarea) {
+        textarea.focus();
+      }
+    }, 120);
   };
 
-  const handleNavigateToAxiomFromFaq = (axiomNumber: string) => {
+  const handleSelectAxiomFromMatrix = (axiomIdentifier: string) => {
+    const matched = SEVEN_AXIOMS.find(
+      (a) =>
+        a.number.toUpperCase() === axiomIdentifier.trim().toUpperCase() ||
+        a.id.toLowerCase() === axiomIdentifier.trim().toLowerCase()
+    );
+    if (matched) {
+      setSelectedAxiomId(matched.id);
+    }
     setActiveTab("axioms");
     setTimeout(() => {
       const axiomElem = document.getElementById("axioms-explorer-section");
       if (axiomElem) {
         axiomElem.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 560, behavior: "smooth" });
       }
-    }, 100);
+    }, 50);
+  };
+
+  const handleNavigateToAxiomFromFaq = (axiomNumber: string) => {
+    handleSelectAxiomFromMatrix(axiomNumber);
   };
 
   return (
@@ -118,16 +173,11 @@ export default function App() {
 
         {/* Content based on Active Tab */}
         {activeTab === "axioms" && (
-          <>
-            <AxiomsExplorer onAskAboutAxiom={handleAskAboutAxiom} />
-            <SummaryMatrix
-              onSelectAxiom={() => {
-                setActiveTab("axioms");
-                window.scrollTo({ top: 400, behavior: "smooth" });
-              }}
-              onAskAI={handleAskAIMatrix}
-            />
-          </>
+          <AxiomsExplorer
+            selectedAxiomId={selectedAxiomId}
+            onSelectAxiomId={setSelectedAxiomId}
+            onAskAboutAxiom={handleAskAboutAxiom}
+          />
         )}
 
         {activeTab === "triad" && <TriadDeepDive />}
@@ -136,10 +186,7 @@ export default function App() {
 
         {activeTab === "matrix" && (
           <SummaryMatrix
-            onSelectAxiom={() => {
-              setActiveTab("axioms");
-              window.scrollTo({ top: 400, behavior: "smooth" });
-            }}
+            onSelectAxiom={handleSelectAxiomFromMatrix}
             onAskAI={handleAskAIMatrix}
           />
         )}

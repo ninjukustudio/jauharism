@@ -449,7 +449,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Header / Profile Card */}
         <div className="rounded-2xl bg-[#0A192F] border border-[#D4AF37]/30 p-6 sm:p-8 shadow-[0_10px_30px_rgba(0,0,0,0.5)] mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-center md:flex-row justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-[#060E1D] border-2 border-[#D4AF37] flex items-center justify-center text-[#D4AF37] font-cinzel font-bold text-xl shadow-[0_0_15px_rgba(212,175,55,0.3)] flex-shrink-0">
                 {currentUser.displayName
